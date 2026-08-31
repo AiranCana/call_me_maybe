@@ -106,13 +106,13 @@ install:
 	@ echo "                                                                                                                                                       " 
 
 run:
-	@$(EXECUTE) $(NAME) $(filter-out $@, $(MAKECMDGOALS))
+	@$(EXECUTE) $(NAME) $(ARGS)
 
 %:
 	@:
 
 debug:
-	@$(EXECUTE) pdb -m $(NAME) $(filter-out $@, $(MAKECMDGOALS))
+	@$(EXECUTE) pdb -m $(NAME) $(ARGS)
 
 clean:
 	@rm -rf __pycache__ .mypy_cache 
