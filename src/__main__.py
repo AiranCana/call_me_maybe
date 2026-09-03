@@ -1,6 +1,7 @@
 import argparse
 import sys
 from pathlib import Path
+from src.parser_json import parser_jsons
 
 
 def parse_args() -> argparse.Namespace:
@@ -25,15 +26,20 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    try:
-        print("Arguments: "
-              f"{Path(args.functions_definition)}, "
-              f"{Path(args.input)}, "
-              f"{Path(args.output)}")
-    except Exception as e:
-        print(f"Error: {e}", file=sys.stderr)
-        return 1
-    return 0
+    # try:
+    path_config, output_exists = parser_jsons(
+        functions_definition=Path(args.functions_definition),
+        inputs=Path(args.input),
+        output=Path(args.output)
+    )
+    print("Arguments: "
+          f"{path_config.functions_definition}, "
+          f"{path_config.input}, "
+          f"{path_config.output}")
+    # except Exception as e:
+    #     print(f"Error: {e}", file=sys.stderr)
+    #     return 1
+    # return 0
 
 
 if __name__ == "__main__":

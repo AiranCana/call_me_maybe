@@ -1,9 +1,6 @@
 4º. Implementa la carga y validación de los ficheros de entrada
 Lee functions_definition.json y function_calling_tests.json, valida que sean JSON correcto y que cumplan el esquema esperado, con manejo de errores (fichero ausente, JSON corrupto, etc.) sin que el programa crashee.
 
-5º. Conecta con el SDK del LLM
-Instancia Small_LLM_Model, prueba que puedes tokenizar un texto (encode) y obtener logits (get_logits_from_input_ids) para una secuencia de prueba. Este paso es solo "verificar que la tubería básica funciona".
-
 6º. Carga y entiende el vocabulario
 Lee el fichero devuelto por get_path_to_vocab_file() y construye una estructura en memoria que te permita, dado un token ID, saber qué string representa (y viceversa). Esto es la base de todo lo que viene después.
 
