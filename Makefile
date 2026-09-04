@@ -120,10 +120,10 @@ clean:
 
 lint:
 	@mypy . --exclude='\.venv' --warn-return-any --warn-unused-ignores --ignore-missing-imports --disallow-untyped-defs --check-untyped-defs && \
-	flake8 . --exclude=.venv,__pycache__
+	flake8 . --exclude=.venv,__pycache__,llm_sdk
 
 lint-strict:
 	@mypy . --exclude='\.venv' --strict && \
-  	flake8 . --exclude=.venv,__pycache__
+  	flake8 . --exclude=.venv,__pycache__,llm_sdk
 
 .PHONY: install run debug clean lint lint-strict

@@ -1,5 +1,5 @@
 from typing import Any
-from src.parser_path import PathConfig
+from src.parser.parser_path import PathConfig
 from pathlib import Path
 import json
 
@@ -34,6 +34,27 @@ def parse_json_input(json_path: Path) -> list[dict[str, Any]]:
 
 def parse_json_output(json_path: Path) -> list[dict[str, Any]]:
     data = vasic_parse_jsons(json_path)
+    for item in data:
+        if not isinstance(item, dict):
+            raise ValueError(f"Invalid input format in {json_path}: "
+                             "Each item must be a dictionary.")
+        for key in item:
+            if not isinstance(key, str):
+                raise ValueError(f"Invalid key type in input item: {item}. "
+                                 "Expected a string.")
+            if key not in ["prompt", "parameters", "name"]:
+                raise ValueError(f"Invalid key '{key}' in input item: {item}. "
+                                 "Expected one of 'prompt', 'parameters', or "
+                                 "'name'.")
+            if key == "parameters":
+                if not isinstance(item[key], dict):
+                    raise ValueError(f"Invalid type for 'parameters' in input "
+                                     f"item: {item}. Expected a dictionary.")
+                for param_key in item[key]:
+                    if not isinstance(param_key, str):
+                        raise ValueError(f"Invalid parameter key type in "
+                                         f"input item: {item}. Expected a "
+                                         "string.")
     return data
 
 
@@ -79,13 +100,13 @@ def validate_type(item: dict[str, Any], param_value: Any,
         verif_type_name(item, param_value)
 
 
-def verif_type_name(item, sub_key):
+def verif_type_name(item: dict[str, Any], sub_key: Any) -> None:
     if not isinstance(sub_key, str) and sub_key != "type":
         raise ValueError(f"Invalid sub-key type in input item: {item}."
                          " Expected a string.")
 
 
-def vasic_parse_jsons(json_path: Path) -> Any:
+def vasic_parse_jsons(json_path: Path) -> list[dict[str, Any]]:
     content = json_path.read_text(encoding="utf-8")
     try:
         data = json.loads(content)

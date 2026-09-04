@@ -1,9 +1,10 @@
 
 from llm_sdk import Small_LLM_Model
 from torch import Tensor, tensor
+from typing import cast
 
 
-def communication(prompt: str, max_tokens: int = 400) -> str:
+def communication(prompt: str, max_tokens: int = 400) -> str | list[str]:
     model = Small_LLM_Model(model_name="gpt2", device="cpu")
     input_ids = tokenizer(prompt, model)
     print(f"\n{model.get_path_to_vocab_file()}", end="\n\n")
@@ -13,7 +14,7 @@ def communication(prompt: str, max_tokens: int = 400) -> str:
         logits_tensor = tensor(logits)
 
         apply_repetition_penalty(logits_tensor, input_ids)
-        next_token = logits_tensor.argmax().item()
+        next_token = int(logits_tensor.argmax().item())
         generated_tokens += 1
         if next_token == 50256:
             break
@@ -24,14 +25,15 @@ def communication(prompt: str, max_tokens: int = 400) -> str:
 
 
 def tokenizer(prompt: str, model: Small_LLM_Model) -> list[int]:
-    return model._tokenizer.encode(prompt, add_special_tokens=False)
+    return list(model._tokenizer.encode(prompt, add_special_tokens=False))
 
 
 def decode(tokens: list[int], model: Small_LLM_Model) -> str:
-    return model._tokenizer.decode(tokens, skip_special_tokens=True)
+    return cast(str, model._tokenizer.decode(tokens, skip_special_tokens=True))
 
 
-def apply_repetition_penalty(logits: Tensor, input_ids: list[int], penalty: float = 1.2) -> Tensor:
+def apply_repetition_penalty(logits: Tensor, input_ids: list[int],
+                             penalty: float = 1.2) -> Tensor:
     for token_id in set(input_ids):
         if logits[token_id] > 0:
             logits[token_id] /= penalty
