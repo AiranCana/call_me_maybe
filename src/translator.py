@@ -1,11 +1,18 @@
 
 from llm_sdk import Small_LLM_Model
-from torch import Tensor, tensor
+from torch import Tensor, tensor, softmax, multinomial
 from typing import cast
+import json
+from pathlib import Path
+
+
+model = Small_LLM_Model(model_name="gpt2", device="cpu")
+dic_ecoder: dict[str, int] = json.loads(
+    Path(model.get_path_to_vocab_file()).read_text(encoding="utf-8"))
+dic_decoder = {item: key for key, item in dic_ecoder.items()}
 
 
 def communication(prompt: str, max_tokens: int = 400) -> str | list[str]:
-    model = Small_LLM_Model(model_name="gpt2", device="cpu")
     input_ids = tokenizer(prompt, model)
     print(f"\n{model.get_path_to_vocab_file()}", end="\n\n")
     generated_tokens = 0
@@ -14,14 +21,20 @@ def communication(prompt: str, max_tokens: int = 400) -> str | list[str]:
         logits_tensor = tensor(logits)
 
         apply_repetition_penalty(logits_tensor, input_ids)
-        next_token = int(logits_tensor.argmax().item())
+        next_token = aleatorety(logits_tensor)
+        input_ids.append(next_token)
         generated_tokens += 1
         if next_token == 50256:
             break
         if generated_tokens >= max_tokens:
             break
-    input_ids.append(next_token)
     return decode(input_ids, model)
+
+
+def aleatorety(logits: Tensor, temerature: float = 0.8) -> int:
+    scale = logits / temerature
+    prob = softmax(scale, dim=-1)
+    return int(multinomial(prob, num_samples=1).item())
 
 
 def tokenizer(prompt: str, model: Small_LLM_Model) -> list[int]:

@@ -1,5 +1,4 @@
 from typing import Any
-from src.parser.parser_path import PathConfig
 from pathlib import Path
 import json
 
@@ -91,7 +90,6 @@ def validate_type(item: dict[str, Any], param_value: Any,
                          "Expected a string.")
     if is_not_return:
         if not isinstance(param_value, (dict)):
-            print(f"param_value: {param_value}, type: {type(param_value)}")
             raise ValueError(f"Invalid parameter value type in input item: "
                              f"{item}. Expected a dictionary.")
         for sub_key in param_value:
@@ -116,18 +114,3 @@ def vasic_parse_jsons(json_path: Path) -> list[dict[str, Any]]:
         raise ValueError(f"Invalid input format in {json_path}: "
                          "Expected a list of dictionaries.")
     return data
-
-
-def parser_jsons(
-        functions_definition: Path,
-        inputs: Path,
-        output: Path
-        ) -> tuple[PathConfig, bool]:
-    path_config = PathConfig(
-        functions_definition=functions_definition,
-        input=inputs,
-        output=output
-    )
-    parse_json_functions(functions_definition)
-    parse_json_input(inputs)
-    return path_config, output.exists()

@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 from src.parser import PathConfig, parser_jsons, parse_json_output
 import json
+from src import communication
 
 
 def parse_args() -> argparse.Namespace:
@@ -34,14 +35,11 @@ def main() -> int:
             inputs=Path(args.input),
             output=Path(args.output)
         )
-        print("Arguments: "
-              f"{path_config.functions_definition}, "
-              f"{path_config.input}, "
-              f"{path_config.output}")
-        result = [
+        refine = [
             __opten_result(path_config, i) for i in range(
                 len(__path_to_json(path_config.input)))
             ]
+        result = [x for x in refine if x is not None]
         if not output_exists and not (n := path_config.output.parent).exists():
             n.mkdir(parents=True, exist_ok=True)
     except Exception as e:
@@ -61,7 +59,7 @@ def verif_output(path_config: PathConfig) -> int:
     return 0
 
 
-def write_json(path_config: PathConfig, result: list[dict[str, Any]]) -> int:
+def write_json(path_config: PathConfig, result: list[Any]) -> int:
     try:
         with path_config.output.open("w", encoding="utf-8") as f:
             json.dump(result, f, indent=4)
@@ -71,7 +69,7 @@ def write_json(path_config: PathConfig, result: list[dict[str, Any]]) -> int:
     return 0
 
 
-def __opten_result(path_config: PathConfig, i: int) -> dict[str, Any]:
+def __opten_result(path_config: PathConfig, i: int) -> Any:
     return __string_to_json(
         pruves(
             __opten_string(path_config.functions_definition),
@@ -84,23 +82,30 @@ def __opten_string(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def __string_to_json(str: str) -> dict[str, Any]:
+def __string_to_json(str: str | None) -> Any:
+    if str is None:
+        return None
     try:
         return json.loads(str)
     except json.JSONDecodeError as e:
         raise ValueError(f"Invalid JSON string: {e}")
 
 
-def __path_to_json(path: Path) -> dict[str, Any]:
+def __path_to_json(path: Path) -> Any:
     try:
-        print(__opten_string(path))
         return json.loads(__opten_string(path))
     except json.JSONDecodeError as e:
         raise ValueError(f"Invalid JSON in {path}: {e}")
 
 
-def pruves(__: dict[str, Any], _: str) -> str:
-    return "The output is valid."
+def pruves(dic: str, pront: Any) -> str | None:
+    try:
+        final_pront = dic + pront
+        communication(final_pront)
+        return '{"status": "ok"}'
+    except Exception as e:
+        print(f"{e}")
+    return None
 
 
 if __name__ == "__main__":

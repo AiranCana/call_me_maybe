@@ -1,9 +1,3 @@
-4º. Implementa la carga y validación de los ficheros de entrada
-Lee functions_definition.json y function_calling_tests.json, valida que sean JSON correcto y que cumplan el esquema esperado, con manejo de errores (fichero ausente, JSON corrupto, etc.) sin que el programa crashee.
-
-6º. Carga y entiende el vocabulario
-Lee el fichero devuelto por get_path_to_vocab_file() y construye una estructura en memoria que te permita, dado un token ID, saber qué string representa (y viceversa). Esto es la base de todo lo que viene después.
-
 7º. Diseña el "validador de continuación"
 Antes de tocar el LLM, diseña (en papel/pseudocódigo) la lógica que, dado un fragmento de JSON generado hasta el momento y el schema objetivo, determina qué caracteres serían válidos a continuación (ej: si acabas de abrir {, solo son válidos espacio o comilla; si estás dentro del valor de un campo number, solo dígitos, punto, etc.). Esto es el núcleo del proyecto.
 
@@ -21,12 +15,6 @@ Una vez sabes qué función se llama, usa el schema de esa función concreta par
 
 12º. Ensambla el resultado por cada prompt
 Por cada entrada del test, junta prompt + name + parameters en un objeto, valídalo con tu modelo pydantic, y añádelo a la lista de resultados.
-
-13º. Escribe el fichero de salida
-Serializa la lista completa a data/output/function_calling_results.json, con manejo de errores de escritura.
-
-14º. Añade manejo de errores global
-Envuelve el flujo completo (por prompt y global) en try/except para que ningún fallo puntual tumbe el programa entero; si un prompt falla, decide cómo lo registras sin crashear.
 
 15º. Testing y validación
 Escribe tests (no se entregan pero te sirven) que cubran casos límite: números grandes, strings vacíos, prompts ambiguos, funciones con varios parámetros.
