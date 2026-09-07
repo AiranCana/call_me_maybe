@@ -1,6 +1,4 @@
 from pathlib import Path
-from src.parser.parser_json import (parse_json_functions,
-                                    parse_json_input)
 import json
 from pydantic import BaseModel, model_validator
 from typing import Any
@@ -12,15 +10,95 @@ class Funtion_defined(BaseModel):
     parameters: dict[str, Any]
     returns: dict[str, Any]
 
+    @model_validator(mode="before")
+    @classmethod
+    def validation(cls, values: dict[str, Any]) -> dict[str, Any]:
+        errors = []
+        lis = ["name", "descripcion", "parameters", "resturns"]
+        types = ["string", "number"]
+        for key, value in values.items():
+            if key not in lis:
+                raise ValueError("bad sintaxis in \"functions_definition\","
+                                 f" they need these 4: {lis}")
+            if key == "parameters":
+                if not isinstance(value, dict):
+                    errors.append("the parameters have been a dict")
+                for _, param_v in value.items():
+                    if not isinstance(param_v, dict):
+                        errors.append("the parameters have"
+                                      " been a dict of dict")
+                        break
+                    else:
+                        for data_k, data_v in param_v.items():
+                            cls.verif_parameters(errors, types, data_k, data_v)
+            if key == "returns":
+                if not isinstance(value, dict):
+                    errors.append("the return have been a dict")
+                else:
+                    for data_k, data_v in values.items():
+                        cls.verif_parameters(errors, types, data_k, data_v)
+        if errors:
+            raise ValueError("\n".join(errors))
+        return values
+
+    @classmethod
+    def verif_parameters(cls, errors: list[str],
+                         types: list[str],
+                         data_k: str, data_v: Any) -> None:
+        if not isinstance(data_k, str) or data_k != "type":
+            errors.append("Datas need a type of data")
+        if (not isinstance(data_v, str) or
+           data_v not in types):
+            errors.append(f"{data_v} is not tipe of data: {types}")
+
 
 class PromptInput(BaseModel):
     prompt: str
 
+    @model_validator(mode="before")
+    @classmethod
+    def validation(cls, values: dict[str, Any]) -> dict[str, Any]:
+        lis = ["prompt"]
+        for key, _ in values.items():
+            if key not in lis:
+                raise ValueError("bad sintaxis in \"function_calling\","
+                                 f"they need these 1: {lis}")
+        return values
+
+
+class PromptOutput(BaseModel):
+    prompt: str
+    name: str
+    parameters: dict[str, Any]
+
+    @model_validator(mode="before")
+    @classmethod
+    def validation(cls, values: dict[str, Any]) -> dict[str, Any]:
+        errors = []
+        lis = ["prompt", "name", "parameters"]
+        for key, value in values.items():
+            if key not in lis:
+                raise ValueError("bad sintaxis in \"function_calling_results\""
+                                 f", they need these 3: {lis}")
+            if key in lis[:-1]:
+                if not isinstance(value, str):
+                    errors.append(f"{key} is not a string")
+            else:
+                if not isinstance(value, dict):
+                    errors.append("the parameters are a dictionary")
+                else:
+                    for param_k, _ in value.items():
+                        if not isinstance(param_k, str):
+                            errors.append("the parameters need a name")
+        if errors:
+            raise ValueError("\n".join(errors))
+        return values
+
 
 class PathConfig(BaseModel):
-    functions_definition: Path
-    input: Path
-    output: Path
+    functions_definition: list[Funtion_defined]
+    input: list[PromptInput]
+    output: list[PromptOutput]
 
     @model_validator(mode="before")
     @classmethod
@@ -28,14 +106,15 @@ class PathConfig(BaseModel):
         errors = []
         for key, path in values.items():
             if key not in ["functions_definition", "input", "output"]:
-                raise ValueError("only need 3 Paths: functions_definition, input and output")
+                raise ValueError("only need 3 Paths: \functions_definition,"
+                                 " input and output")
             if not path.suffix == ".json":
                 errors.append(f"{key} path must be a .json file: {path}")
             if not isinstance(path, Path):
                 errors.append(f"{key} must be a Path object.")
             if not path.exists() and key != "output":
                 errors.append(f"{key} path does not exist: {path}")
-            elif path.exists():
+            elif path.exists() and key != "output":
                 if not path.is_file():
                     errors.append(f"{key} path is not a file: {path}")
         if errors:
@@ -44,15 +123,32 @@ class PathConfig(BaseModel):
         datas = {}
         for key, value in copies.items():
             if key == "functions_definition":
-                datas.update(key: [Funtion_defined(x) for x in list(json.loads(value.read_text(encoding="utf-8")))])
+                datas.update(cls.get_datas(key, value, Funtion_defined))
+            if key == "input":
+                datas.update(cls.get_datas(key, value, PromptInput))
+            if key == "output":
+                datas.update(cls.get_datas(key, value, PromptOutput))
+        return datas
 
-        return values
+    @classmethod
+    def get_datas(cls, key: str, value: Any,
+                  clas: type[BaseModel]) -> dict[str, list[Any]]:
+        datas = []
+        try:
+            datas = json.loads(value.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+        return {key: [clas(x) for x in datas]}
 
-    @model_validator(mode="after")
-    def verif_json(self) -> "PathConfig":
-        parse_json_functions(self.functions_definition)
-        parse_json_input(self.input)
-        return self
+    @classmethod
+    def generate_output(self) -> None:
+        lis = [out.model_dump for out in self.output]
+        json.dumps(lis, indent=4)
+
+    @classmethod
+    def verif_output(cls, values: list[dict[str, Any]]) -> None:
+        cls.get_datas("out", values, PromptOutput)
+
 
 
 def parser_jsons(

@@ -2,7 +2,7 @@ import argparse
 import sys
 from pathlib import Path
 from typing import Any
-from src.parser import PathConfig, parser_jsons, parse_json_output
+from src.parser import PathConfig, parser_jsons
 import json
 from src import communication
 
@@ -37,34 +37,15 @@ def main() -> int:
         )
         refine = [
             __opten_result(path_config, i) for i in range(
-                len(__path_to_json(path_config.input)))
+                len(path_config.input))
             ]
         result = [x for x in refine if x is not None]
         if not output_exists and not (n := path_config.output.parent).exists():
             n.mkdir(parents=True, exist_ok=True)
+        path_config.verif_output(result)
+        path_config.generate_output()
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
-        return 1
-    if write_json(path_config, result) == 1:
-        return 1
-    return verif_output(path_config)
-
-
-def verif_output(path_config: PathConfig) -> int:
-    try:
-        parse_json_output(path_config.output)
-    except Exception as e:
-        print(f"Error: the output file is invalid: {e}", file=sys.stderr)
-        return 1
-    return 0
-
-
-def write_json(path_config: PathConfig, result: list[Any]) -> int:
-    try:
-        with path_config.output.open("w", encoding="utf-8") as f:
-            json.dump(result, f, indent=4)
-    except OSError as e:
-        print(f"Error: failed to write output file: {e}", file=sys.stderr)
         return 1
     return 0
 
