@@ -6,7 +6,7 @@ from typing import Any
 
 class Funtion_defined(BaseModel):
     name: str
-    descripcion: str
+    description: str
     parameters: dict[str, Any]
     returns: dict[str, Any]
 
@@ -14,7 +14,7 @@ class Funtion_defined(BaseModel):
     @classmethod
     def validation(cls, values: dict[str, Any]) -> dict[str, Any]:
         errors = []
-        lis = ["name", "descripcion", "parameters", "resturns"]
+        lis = ["name", "description", "parameters", "returns"]
         types = ["string", "number"]
         for key, value in values.items():
             if key not in lis:
@@ -30,21 +30,22 @@ class Funtion_defined(BaseModel):
                         break
                     else:
                         for data_k, data_v in param_v.items():
-                            cls.verif_parameters(errors, types, data_k, data_v)
+                            cls.__verif_parameters(errors, types, data_k,
+                                                   data_v)
             if key == "returns":
                 if not isinstance(value, dict):
                     errors.append("the return have been a dict")
                 else:
-                    for data_k, data_v in values.items():
-                        cls.verif_parameters(errors, types, data_k, data_v)
+                    for data_k, data_v in value.items():
+                        cls.__verif_parameters(errors, types, data_k, data_v)
         if errors:
             raise ValueError("\n".join(errors))
         return values
 
     @classmethod
-    def verif_parameters(cls, errors: list[str],
-                         types: list[str],
-                         data_k: str, data_v: Any) -> None:
+    def __verif_parameters(cls, errors: list[str],
+                           types: list[str],
+                           data_k: str, data_v: Any) -> None:
         if not isinstance(data_k, str) or data_k != "type":
             errors.append("Datas need a type of data")
         if (not isinstance(data_v, str) or
@@ -102,7 +103,7 @@ class PathConfig(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def validate_paths(cls, values: dict[str, Any]) -> dict[str, Path]:
+    def validate_paths(cls, values: dict[str, Path]) -> dict[str, Any]:
         errors = []
         for key, path in values.items():
             if key not in ["functions_definition", "input", "output"]:
@@ -123,32 +124,34 @@ class PathConfig(BaseModel):
         datas = {}
         for key, value in copies.items():
             if key == "functions_definition":
-                datas.update(cls.get_datas(key, value, Funtion_defined))
+                datas.update(cls.__get_datas(key, value, Funtion_defined))
             if key == "input":
-                datas.update(cls.get_datas(key, value, PromptInput))
+                datas.update(cls.__get_datas(key, value, PromptInput))
             if key == "output":
-                datas.update(cls.get_datas(key, value, PromptOutput))
+                datas.update(cls.__get_datas(key, value, PromptOutput))
         return datas
 
     @classmethod
-    def get_datas(cls, key: str, value: Any,
-                  clas: type[BaseModel]) -> dict[str, list[Any]]:
-        datas = []
-        try:
-            datas = json.loads(value.read_text(encoding="utf-8"))
-        except Exception:
-            pass
-        return {key: [clas(x) for x in datas]}
+    def __get_datas(cls, key: str, value: Any,
+                    clas: type[BaseModel]) -> dict[str, list[Any]]:
+        if isinstance(value, Path):
+            datas = []
+            try:
+                datas = json.loads(value.read_text(encoding="utf-8"))
+            except Exception:
+                pass
+            return {key: [clas(**x) for x in datas]}
+        return {key: [clas(**x) for x in value]}
 
-    @classmethod
-    def generate_output(self) -> None:
-        lis = [out.model_dump for out in self.output]
-        json.dumps(lis, indent=4)
+    def generate_output(self, file: Path) -> None:
+        lis = [out.model_dump() for out in self.output]
+        with file.open("w", encoding="utf-8") as f:
+            json.dump(lis, f, indent=4)
 
-    @classmethod
     def verif_output(cls, values: list[dict[str, Any]]) -> None:
-        cls.get_datas("out", values, PromptOutput)
-
+        cls.output = cls.__get_datas("out", values, PromptOutput)["out"]
+        if len(cls.output) != len(cls.input):
+            raise ValueError("There aren't all anwers")
 
 
 def parser_jsons(
@@ -156,9 +159,9 @@ def parser_jsons(
         inputs: Path,
         output: Path
         ) -> tuple[PathConfig, bool]:
-    path_config = PathConfig(
-        functions_definition=functions_definition,
-        input=inputs,
-        output=output
+    path_config = PathConfig.model_validate(
+        {"functions_definition": functions_definition,
+         "input": inputs,
+         "output": output}
     )
     return path_config, output.exists()

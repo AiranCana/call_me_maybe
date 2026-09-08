@@ -1,10 +1,11 @@
 import argparse
 import sys
 from pathlib import Path
+from pydantic import TypeAdapter, ValidationError
 from typing import Any
-from src.parser import PathConfig, parser_jsons
+from src.parsers import PathConfig, parser_jsons, Funtion_defined
 import json
-from src import communication
+# from src import communication
 
 
 def parse_args() -> argparse.Namespace:
@@ -40,10 +41,14 @@ def main() -> int:
                 len(path_config.input))
             ]
         result = [x for x in refine if x is not None]
-        if not output_exists and not (n := path_config.output.parent).exists():
-            n.mkdir(parents=True, exist_ok=True)
         path_config.verif_output(result)
-        path_config.generate_output()
+        if not output_exists and not (n := Path(args.output).parent).exists():
+            n.mkdir(parents=True, exist_ok=True)
+        path_config.generate_output(Path(args.output))
+    except ValidationError as e:
+        msgs = [err["msg"] for err in e.errors()]
+        print(f"Error: {'; '.join(msgs)}", file=sys.stderr)
+        return 1
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         return 1
@@ -54,13 +59,14 @@ def __opten_result(path_config: PathConfig, i: int) -> Any:
     return __string_to_json(
         pruves(
             __opten_string(path_config.functions_definition),
-            __path_to_json(path_config.input)[i]["prompt"]
+            path_config.input[i].prompt
         )
     )
 
 
-def __opten_string(path: Path) -> str:
-    return path.read_text(encoding="utf-8")
+def __opten_string(output: list[Any]) -> str:
+    adapter = TypeAdapter(list[Funtion_defined])
+    return adapter.dump_json(output).decode("utf-8")
 
 
 def __string_to_json(str: str | None) -> Any:
@@ -72,17 +78,10 @@ def __string_to_json(str: str | None) -> Any:
         raise ValueError(f"Invalid JSON string: {e}")
 
 
-def __path_to_json(path: Path) -> Any:
-    try:
-        return json.loads(__opten_string(path))
-    except json.JSONDecodeError as e:
-        raise ValueError(f"Invalid JSON in {path}: {e}")
-
-
 def pruves(dic: str, pront: Any) -> str | None:
     try:
         final_pront = dic + pront
-        communication(final_pront)
+        # communication(final_pront)
         return '{"status": "ok"}'
     except Exception as e:
         print(f"{e}")
