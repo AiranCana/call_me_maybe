@@ -12,7 +12,7 @@ class Funtion_defined(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def validation(cls, values: dict[str, Any]) -> dict[str, Any]:
+    def validation(self, values: dict[str, Any]) -> dict[str, Any]:
         errors = []
         lis = ["name", "description", "parameters", "returns"]
         types = ["string", "number"]
@@ -30,20 +30,20 @@ class Funtion_defined(BaseModel):
                         break
                     else:
                         for data_k, data_v in param_v.items():
-                            cls.__verif_parameters(errors, types, data_k,
-                                                   data_v)
+                            self.__verif_parameters(errors, types, data_k,
+                                                    data_v)
             if key == "returns":
                 if not isinstance(value, dict):
                     errors.append("the return have been a dict")
                 else:
                     for data_k, data_v in value.items():
-                        cls.__verif_parameters(errors, types, data_k, data_v)
+                        self.__verif_parameters(errors, types, data_k, data_v)
         if errors:
             raise ValueError("\n".join(errors))
         return values
 
     @classmethod
-    def __verif_parameters(cls, errors: list[str],
+    def __verif_parameters(self, errors: list[str],
                            types: list[str],
                            data_k: str, data_v: Any) -> None:
         if not isinstance(data_k, str) or data_k != "type":
@@ -58,7 +58,7 @@ class PromptInput(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def validation(cls, values: dict[str, Any]) -> dict[str, Any]:
+    def validation(self, values: dict[str, Any]) -> dict[str, Any]:
         lis = ["prompt"]
         for key, _ in values.items():
             if key not in lis:
@@ -74,7 +74,7 @@ class PromptOutput(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def validation(cls, values: dict[str, Any]) -> dict[str, Any]:
+    def validation(self, values: dict[str, Any]) -> dict[str, Any]:
         errors = []
         lis = ["prompt", "name", "parameters"]
         for key, value in values.items():
@@ -103,7 +103,7 @@ class PathConfig(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def validate_paths(cls, values: dict[str, Path]) -> dict[str, Any]:
+    def validate_paths(self, values: dict[str, Path]) -> dict[str, Any]:
         errors = []
         for key, path in values.items():
             if key not in ["functions_definition", "input", "output"]:
@@ -124,15 +124,15 @@ class PathConfig(BaseModel):
         datas = {}
         for key, value in copies.items():
             if key == "functions_definition":
-                datas.update(cls.__get_datas(key, value, Funtion_defined))
+                datas.update(self.__get_datas(key, value, Funtion_defined))
             if key == "input":
-                datas.update(cls.__get_datas(key, value, PromptInput))
+                datas.update(self.__get_datas(key, value, PromptInput))
             if key == "output":
-                datas.update(cls.__get_datas(key, value, PromptOutput))
+                datas.update(self.__get_datas(key, value, PromptOutput))
         return datas
 
     @classmethod
-    def __get_datas(cls, key: str, value: Any,
+    def __get_datas(self, key: str, value: Any,
                     clas: type[BaseModel]) -> dict[str, list[Any]]:
         if isinstance(value, Path):
             datas = []
@@ -148,9 +148,9 @@ class PathConfig(BaseModel):
         with file.open("w", encoding="utf-8") as f:
             json.dump(lis, f, indent=4)
 
-    def verif_output(cls, values: list[dict[str, Any]]) -> None:
-        cls.output = cls.__get_datas("out", values, PromptOutput)["out"]
-        if len(cls.output) != len(cls.input):
+    def verif_output(self, values: list[dict[str, Any]]) -> None:
+        self.output = self.__get_datas("out", values, PromptOutput)["out"]
+        if len(self.output) != len(self.input):
             raise ValueError("There aren't all anwers")
 
 
