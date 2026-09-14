@@ -82,7 +82,7 @@ def __string_to_json(str: str | None) -> Any:
 def pruves(dic: str, pront: Any, model: Small_llm) -> str | None:
     try:
         final_pront = dic + pront
-        # model.communication(final_pront)
+        # return model.communication(final_pront)
         return '{"status": "ok"}'
     except Exception as e:
         print(f"{e}")
