@@ -1,3 +1,3 @@
-from src.translator import communication
+from src.translator import Small_llm
 
-__all__ = ["communication"]
+__all__ = ["Small_llm"]

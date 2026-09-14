@@ -5,7 +5,7 @@ from pydantic import TypeAdapter, ValidationError
 from typing import Any
 from src.parsers import PathConfig, parser_jsons, Funtion_defined
 import json
-# from src import communication
+from src import Small_llm
 
 
 def parse_args() -> argparse.Namespace:
@@ -36,8 +36,9 @@ def main() -> int:
             inputs=Path(args.input),
             output=Path(args.output)
         )
+        model = Small_llm()
         refine = [
-            __opten_result(path_config, i) for i in range(
+            __opten_result(path_config, i, model) for i in range(
                 len(path_config.input))
             ]
         result = [x for x in refine if x is not None]
@@ -78,10 +79,10 @@ def __string_to_json(str: str | None) -> Any:
         raise ValueError(f"Invalid JSON string: {e}")
 
 
-def pruves(dic: str, pront: Any) -> str | None:
+def pruves(dic: str, pront: Any, model: Small_llm) -> str | None:
     try:
         final_pront = dic + pront
-        # communication(final_pront)
+        # model.communication(final_pront)
         return '{"status": "ok"}'
     except Exception as e:
         print(f"{e}")

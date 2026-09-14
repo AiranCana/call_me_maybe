@@ -139,7 +139,7 @@ class PathConfig(BaseModel):
             try:
                 datas = json.loads(value.read_text(encoding="utf-8"))
             except Exception:
-                pass
+                raise ValueError("Vad sintaxis")
             return {key: [clas(**x) for x in datas]}
         return {key: [clas(**x) for x in value]}
 

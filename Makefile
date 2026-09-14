@@ -105,6 +105,8 @@ install:
 	@ echo "                                                                                                                                                       "
 	@ echo "                                                                                                                                                       " 
 
+export HF_HOME=/sgoinfre/students/acanadil/.hf-cache
+
 run:
 	@$(EXECUTE) $(NAME) $(ARGS)
 
