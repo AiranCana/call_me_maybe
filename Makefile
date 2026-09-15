@@ -110,9 +110,6 @@ export HF_HOME=/sgoinfre/students/acanadil/.hf-cache
 run:
 	@$(EXECUTE) $(NAME) $(ARGS)
 
-%:
-	@:
-
 debug:
 	@$(EXECUTE) pdb -m $(NAME) $(ARGS)
 

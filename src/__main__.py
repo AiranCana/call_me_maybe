@@ -36,7 +36,7 @@ def main() -> int:
             inputs=Path(args.input),
             output=Path(args.output)
         )
-        model = Small_llm()
+        model = Small_llm
         refine = [
             __opten_result(path_config, i, model) for i in range(
                 len(path_config.input))
@@ -56,11 +56,13 @@ def main() -> int:
     return 0
 
 
-def __opten_result(path_config: PathConfig, i: int) -> Any:
+def __opten_result(path_config: PathConfig, i: int,
+                   model: Small_llm) -> Any:
     return __string_to_json(
         pruves(
             __opten_string(path_config.functions_definition),
-            path_config.input[i].prompt
+            path_config.input[i].prompt,
+            model
         )
     )
 
