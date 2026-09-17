@@ -36,9 +36,9 @@ def main() -> int:
             inputs=Path(args.input),
             output=Path(args.output)
         )
-        model = Small_llm
+        model = Small_llm()
         refine = [
-            __opten_result(path_config, i, model) for i in range(
+            __opten_results(path_config, i, model) for i in range(
                 len(path_config.input))
             ]
         result = [x for x in refine if x is not None]
@@ -56,20 +56,20 @@ def main() -> int:
     return 0
 
 
-def __opten_result(path_config: PathConfig, i: int,
-                   model: Small_llm) -> Any:
+def __opten_results(path_config: PathConfig, i: int,
+                    model: Small_llm) -> Any:
     return __string_to_json(
-        pruves(
-            __opten_string(path_config.functions_definition),
+        __opten_result(
+            __opten_dict(path_config.functions_definition),
             path_config.input[i].prompt,
             model
         )
     )
 
 
-def __opten_string(output: list[Any]) -> str:
+def __opten_dict(output: list[Any]) -> list[dict[str, Any]]:
     adapter = TypeAdapter(list[Funtion_defined])
-    return adapter.dump_json(output).decode("utf-8")
+    return __string_to_json(adapter.dump_json(output).decode("utf-8"))
 
 
 def __string_to_json(str: str | None) -> Any:
@@ -81,10 +81,11 @@ def __string_to_json(str: str | None) -> Any:
         raise ValueError(f"Invalid JSON string: {e}")
 
 
-def pruves(dic: str, pront: Any, model: Small_llm) -> str | None:
+def __opten_result(dic: list[dict[str, Any]],
+                   prompt: str,
+                   model: Small_llm) -> str | None:
     try:
-        final_pront = dic + pront
-        # return model.communication(final_pront)
+        return model.communication(dic, prompt)
         return '{"status": "ok"}'
     except Exception as e:
         print(f"{e}")

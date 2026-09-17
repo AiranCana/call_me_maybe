@@ -106,6 +106,7 @@ install:
 	@ echo "                                                                                                                                                       " 
 
 export HF_HOME=/sgoinfre/students/acanadil/.hf-cache
+export UV_CACHE_DIR=/sgoinfre/students/acanadil/.uv-cache
 
 run:
 	@$(EXECUTE) $(NAME) $(ARGS)

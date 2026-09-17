@@ -127,8 +127,10 @@ class PathConfig(BaseModel):
                 datas.update(self.__get_datas(key, value, Funtion_defined))
             if key == "input":
                 datas.update(self.__get_datas(key, value, PromptInput))
-            if key == "output":
+            if key == "output" and value.exists():
                 datas.update(self.__get_datas(key, value, PromptOutput))
+            elif key == "output":
+                datas.update({key: []})
         return datas
 
     @classmethod
@@ -138,8 +140,8 @@ class PathConfig(BaseModel):
             datas = []
             try:
                 datas = json.loads(value.read_text(encoding="utf-8"))
-            except Exception:
-                raise ValueError("Vad sintaxis")
+            except Exception as e:
+                raise ValueError(f"Bad sintaxis {e}")
             return {key: [clas(**x) for x in datas]}
         return {key: [clas(**x) for x in value]}
 

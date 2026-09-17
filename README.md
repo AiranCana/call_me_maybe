@@ -1,6 +1,3 @@
-7º. Diseña el "validador de continuación"
-Antes de tocar el LLM, diseña (en papel/pseudocódigo) la lógica que, dado un fragmento de JSON generado hasta el momento y el schema objetivo, determina qué caracteres serían válidos a continuación (ej: si acabas de abrir {, solo son válidos espacio o comilla; si estás dentro del valor de un campo number, solo dígitos, punto, etc.). Esto es el núcleo del proyecto.
-
 8º. Traduce ese validador a nivel de tokens
 Para cada token del vocabulario, comprueba si añadirlo mantiene la cadena generada como "JSON parcialmente válido según el schema". Esto te da, en cada paso, el conjunto de token IDs permitidos.
 

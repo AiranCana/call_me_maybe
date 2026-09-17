@@ -1,8 +1,17 @@
 
 from llm_sdk import Small_LLM_Model
+from typing import Any
+from pathlib import Path
+from src.enum import State
+from src.state_machine import Parser_llm
 import torch
 import json
-from pathlib import Path
+
+dicts: dict[str, str] = {
+    "prompt": "string",
+    "name": "string",
+    "parameters": "dic"
+}
 
 
 class Small_llm:
@@ -11,11 +20,10 @@ class Small_llm:
         try:
             self.__encoder = self.__bytes_to_unicode()
             self.__decoder = {k: v for v, k in self.__encoder.items()}
-            self.model = Small_LLM_Model(device="cpu")
+            self.model = Small_LLM_Model(device=self.__device)
             self.dic_ecoder: dict[str, int] = json.loads(
                 Path(self.model.get_path_to_vocab_file())
                 .read_text(encoding="utf-8"))
-            print(self.model.get_path_to_vocab_file())
             self.dic_decoder = {item: key
                                 for key, item in self.dic_ecoder.items()}
             self.unk_id = self.dic_ecoder.get("<unk>", 0)
@@ -38,25 +46,30 @@ class Small_llm:
                 n += 1
         return dict(zip(bas, [chr(c) for c in cast]))
 
-    def communication(self, prompt: str, max_tokens: int = 400
-                      ) -> str:
+    def generator(self, prompt: str, parameters: dict[str, dict[str, str]],
+                  max_tokens: int = 400) -> str:
         input_ids = self.tokenizer(prompt)
         result = []
         generated_tokens = 0
+        machine = Parser_llm(dicts, parameters)
         while True:
             logits = self.model.get_logits_from_input_ids(input_ids)
             logits_tensor = torch.tensor(logits)
 
             self.apply_repetition_penalty(logits_tensor, input_ids)
             next_token = self.aleatorety(logits_tensor)
-            input_ids.append(next_token)
-            result.append(next_token)
-            generated_tokens += 1
-            eos_token = self.dic_ecoder.get("</s>")
-            if next_token == eos_token:
-                break
-            if generated_tokens >= max_tokens:
-                break
+            if machine.verif_correct_now(self.decode([next_token])):
+                machine.proces_token(self.decode([next_token]))
+                if machine.state == State.INVALID:
+                    continue
+                input_ids.append(next_token)
+                result.append(next_token)
+                generated_tokens += 1
+                eos_token = self.dic_ecoder.get("</s>")
+                if next_token == eos_token:
+                    break
+                if generated_tokens >= max_tokens:
+                    break
         return self.decode(result)
 
     def aleatorety(self, logits: torch.Tensor, temerature: float = 0.8) -> int:
@@ -106,9 +119,17 @@ class Small_llm:
                 logits[token_id] *= penalty
         return logits
 
+    def communication(self, funtions: list[dict[str, Any]], promt: str) -> str:
+        parameters = {
+            key["name"]: {
+                k: v["type"] for k, v in key["parameters"].items()
+            } for key in funtions
+        }
+        return self.generator(promt, parameters)
+
 
 if __name__ == "__main__":
     prompt = "What is the sum of 2 and 2?"
     hola = Small_llm()
-    response = hola.communication(prompt)
+    response = hola.generator(prompt)
     print(response)
