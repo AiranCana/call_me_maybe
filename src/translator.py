@@ -4,7 +4,6 @@ from typing import Any
 from pathlib import Path
 from src.enum import State
 from src.state_machine import Parser_llm
-import torch
 import json
 
 dicts: dict[str, str] = {
@@ -53,29 +52,36 @@ class Small_llm:
         generated_tokens = 0
         machine = Parser_llm(dicts, parameters)
         while True:
-            logits = self.model.get_logits_from_input_ids(input_ids)
-            logits_tensor = torch.tensor(logits)
-
-            self.apply_repetition_penalty(logits_tensor, input_ids)
-            next_token = self.aleatorety(logits_tensor)
-            if machine.verif_correct_now(self.decode([next_token])):
-                machine.proces_token(self.decode([next_token]))
-                if machine.state == State.INVALID:
-                    continue
-                input_ids.append(next_token)
-                result.append(next_token)
-                generated_tokens += 1
-                eos_token = self.dic_ecoder.get("</s>")
-                if next_token == eos_token:
+            proces_next_token = self.model.get_logits_from_input_ids(input_ids)
+            if machine.state == State.FIND_BRACKET:
+                proces_next_token[self.tokenizer("{")[0]] = float("inf")
+            if machine.state == State.WAIT_KEY:
+                proces_next_token[self.tokenizer('"')[0]] = float("inf")
+            if machine.state == State.WAIT_COLON:
+                proces_next_token[self.tokenizer(':')[0]] = float("inf")
+            if machine.state == State.WAIT_VALUE:
+                pass
+            if machine.state == State.WAIT_FINAL_OR_COMMA:
+                pass
+            if machine.state == State.FINAL:
+                break
+            logits = sorted(range(len(proces_next_token)),
+                            key=lambda idx: logits[idx],
+                            reverse=True)
+            for next_token in logits:
+                if machine.verif_correct_now(self.decode([next_token])):
+                    print(self.decode([next_token]))
+                    machine.proces_token(self.decode([next_token]))
+                    input_ids.append(next_token)
+                    result.append(next_token)
+                    generated_tokens += 1
+                    eos_token = self.dic_ecoder.get("</s>")
                     break
-                if generated_tokens >= max_tokens:
-                    break
+            if next_token == eos_token:
+                break
+            if generated_tokens >= max_tokens:
+                break
         return self.decode(result)
-
-    def aleatorety(self, logits: torch.Tensor, temerature: float = 0.8) -> int:
-        scale = logits / temerature
-        prob = torch.softmax(scale, dim=-1)
-        return int(torch.multinomial(prob, num_samples=1).item())
 
     def __transformer(self, prompt: str) -> str:
         prom_bytes = prompt.encode("utf-8")
@@ -108,28 +114,25 @@ class Small_llm:
                      if ch in self.__decoder)
         return text.decode("utf-8", errors="replace")
 
-    def apply_repetition_penalty(
-            self, logits: torch.Tensor,
-            input_ids: list[int],
-            penalty: float = 1.2) -> torch.Tensor:
-        for token_id in set(input_ids):
-            if logits[token_id] > 0:
-                logits[token_id] /= penalty
-            else:
-                logits[token_id] *= penalty
-        return logits
-
-    def communication(self, funtions: list[dict[str, Any]], promt: str) -> str:
+    def communication(self, functions: list[dict[str, Any]],
+                      prompt: str) -> str:
         parameters = {
             key["name"]: {
                 k: v["type"] for k, v in key["parameters"].items()
-            } for key in funtions
+            } for key in functions
         }
-        return self.generator(promt, parameters)
-
-
-if __name__ == "__main__":
-    prompt = "What is the sum of 2 and 2?"
-    hola = Small_llm()
-    response = hola.generator(prompt)
-    print(response)
+        functions_text = json.dumps(functions, indent=2)
+        sys_prom = ("System: "
+                    "You are a function calling assistant. "
+                    "You will give a json with this parameters: "
+                    "prompt (that is the prompt of user, is the same rpompt,"
+                    " letter for letter), "
+                    "name (the name of function), "
+                    "parameters (the parameters of the function). "
+                    "For example: "
+                    '{"prompt":"What is the sum of 2 and 3?","name":'
+                    '"fn_add_numbers","parameters":{"a":2.0,"b":3.0}} '
+                    "The functions "
+                    "that you have are: " + functions_text)
+        new_prompt = "\nUser: " + prompt + "\nAssistant: "
+        return self.generator(sys_prom + new_prompt, parameters)
