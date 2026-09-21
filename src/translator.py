@@ -59,18 +59,20 @@ class Small_llm:
                 proces_next_token[self.tokenizer('"')[0]] = float("inf")
             if machine.state == State.WAIT_COLON:
                 proces_next_token[self.tokenizer(':')[0]] = float("inf")
-            if machine.state == State.WAIT_VALUE:
-                pass
-            if machine.state == State.WAIT_FINAL_OR_COMMA:
-                pass
+            if (n := machine.read_dict_value) is not None:
+                if n.state == State.FIND_BRACKET:
+                    proces_next_token[self.tokenizer("{")[0]] = float("inf")
+                if n.state == State.WAIT_KEY:
+                    proces_next_token[self.tokenizer('"')[0]] = float("inf")
+                if n.state == State.WAIT_COLON:
+                    proces_next_token[self.tokenizer(':')[0]] = float("inf")
             if machine.state == State.FINAL:
                 break
             logits = sorted(range(len(proces_next_token)),
-                            key=lambda idx: logits[idx],
+                            key=lambda idx: proces_next_token[idx],
                             reverse=True)
             for next_token in logits:
                 if machine.verif_correct_now(self.decode([next_token])):
-                    print(self.decode([next_token]))
                     machine.proces_token(self.decode([next_token]))
                     input_ids.append(next_token)
                     result.append(next_token)
@@ -130,8 +132,8 @@ class Small_llm:
                     "name (the name of function), "
                     "parameters (the parameters of the function). "
                     "For example: "
-                    '{"prompt":"What is the sum of 2 and 3?","name":'
-                    '"fn_add_numbers","parameters":{"a":2.0,"b":3.0}} '
+                    '{"prompt":"...","name":'
+                    '...,"parameters":{...} '
                     "The functions "
                     "that you have are: " + functions_text)
         new_prompt = "\nUser: " + prompt + "\nAssistant: "

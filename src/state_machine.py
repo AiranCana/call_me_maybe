@@ -1,5 +1,6 @@
 from src.enum import State
 from typing import Any
+import json
 
 
 class Parser_llm:
@@ -7,6 +8,7 @@ class Parser_llm:
     def __init__(self, objetive_keys: dict[str, str],
                  parameters: dict[str, dict[str, str]] = {}):
         self.objetive_keys = objetive_keys
+        self.dis_key = [key for key in objetive_keys.keys()]
         self.parameters = parameters
         self.state = State.FIND_BRACKET
         self.buffer = ""
@@ -38,18 +40,21 @@ class Parser_llm:
             case State.READ_KEY:
                 if char == '"':
                     if self.buffer in self.objetive_keys.keys():
-                        self.actual_key = self.buffer
-                        self.state = State.WAIT_COLON
-                        self.tipe_value = self.objetive_keys[self.actual_key]
+                        if self.buffer == self.dis_key[
+                           len(self.stract_data)]:
+                            self.actual_key = self.buffer
+                            self.state = State.WAIT_COLON
+                            self.tipe_value = self.objetive_keys[
+                                self.actual_key]
+                        else:
+                            self.state = State.INVALID
                     else:
                         self.state = State.INVALID
                     self.buffer = ""
                 else:
                     self.buffer += char
-                    if not (True in [
-                            x.startswith(self.buffer) for x in self.
-                            objetive_keys.keys()
-                            ]):
+                    if not (self.dis_key[len(self.stract_data)].
+                       startswith(self.buffer)):
                         self.state = State.INVALID
             case State.WAIT_COLON:
                 if char == ':':
@@ -57,25 +62,24 @@ class Parser_llm:
                 else:
                     self.state = State.INVALID
             case State.WAIT_VALUE:
-                if not char.isspace():
-                    if char == '"' and self.tipe_value == "string":
-                        self.state = State.READ_VALUE
-                    elif ((char.isdigit() or char == '-') and
-                          self.tipe_value == "number"):
-                        self.state = State.READ_VALUE
-                        self.buffer += char
-                    elif char == "{" and self.tipe_value == "dic":
-                        if (n := self.stract_data.get("name", None)) is None:
-                            self.state = State.INVALID
-                        elif n not in self.parameters.keys():
-                            self.state = State.INVALID
-                        else:
-                            self.read_dict_value = Parser_llm(
-                                self.parameters[n])
-                            self.read_dict_value.proces_token(char)
-                            self.state = State.READ_VALUE
-                    else:
+                if char == '"' and self.tipe_value == "string":
+                    self.state = State.READ_VALUE
+                elif ((char.isdigit() or char == '-') and
+                      self.tipe_value == "number"):
+                    self.state = State.READ_VALUE
+                    self.buffer += char
+                elif char == "{" and self.tipe_value == "dic":
+                    if (n := self.stract_data.get("name", None)) is None:
                         self.state = State.INVALID
+                    elif n not in self.parameters.keys():
+                        self.state = State.INVALID
+                    else:
+                        self.read_dict_value = Parser_llm(
+                            self.parameters[n])
+                        self.read_dict_value.proces_token(char)
+                        self.state = State.READ_VALUE
+                else:
+                    self.state = State.INVALID
             case State.READ_VALUE:
                 self.__read_value(char)
             case State.WAIT_FINAL_OR_COMMA:
@@ -91,9 +95,32 @@ class Parser_llm:
             case "string":
                 if char == '"' and not self.buffer.endswith("\\"):
                     value = self.buffer
-                    self.__asign_value(value)
+                    if (self.stract_data.get("name", None) is None and
+                       self.actual_key == "name"):
+                        if len(self.parameters) != 0:
+                            if any(x == self.buffer for x in self.
+                                   parameters.keys()):
+                                self.__asign_value(value)
+                            else:
+                                self.state = State.INVALID
+                        else:
+                            self.__asign_value(value)
+                    else:
+                        self.__asign_value(value)
                 else:
-                    self.buffer += char
+                    if (self.stract_data.get("name", None) is None and
+                       self.actual_key == "name"):
+                        if len(self.parameters) != 0:
+                            if any(x.startswith(
+                                self.buffer + char) for x in self.
+                                   parameters.keys()):
+                                self.buffer += char
+                            else:
+                                self.state = State.INVALID
+                        else:
+                            self.buffer += char
+                    else:
+                        self.buffer += char
             case "number":
                 if char in (',', '}', ' ', '\t', '\n'):
                     try:
@@ -124,6 +151,11 @@ class Parser_llm:
                         self.state = State.INVALID
 
     def __asign_value(self, value: Any) -> None:
+        try:
+            json.loads("{" + f"{self.actual_key}: {value}" + "}")
+        except Exception:
+            self.state = State.INVALID
+            return
         if (self.actual_key in self.objetive_keys or
            len(self.objetive_keys) == 0):
             self.stract_data[self.actual_key] = value
@@ -143,4 +175,4 @@ class Parser_llm:
     def verif_correct_now(self, token: str) -> bool:
         pruber = self.new_parser()
         pruber.proces_token(token)
-        return pruber.state != State.INVALID
+        return pruber.state != State.INVALID and len(token) != 0
