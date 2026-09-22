@@ -46,7 +46,7 @@ class Small_llm:
         return dict(zip(bas, [chr(c) for c in cast]))
 
     def generator(self, prompt: str, parameters: dict[str, dict[str, str]],
-                  max_tokens: int = 400) -> str:
+                  prompt_base: str, max_tokens: int = 400) -> str:
         input_ids = self.tokenizer(prompt)
         result = []
         generated_tokens = 0
@@ -66,19 +66,38 @@ class Small_llm:
                     proces_next_token[self.tokenizer('"')[0]] = float("inf")
                 if n.state == State.WAIT_COLON:
                     proces_next_token[self.tokenizer(':')[0]] = float("inf")
+                if n.state == State.WAIT_FINAL_OR_COMMA:
+                    proces_next_token = [x if x in [
+                        self.tokenizer(","), self.tokenizer("}}")
+                        ] else float("-inf") for x in proces_next_token]
+            if machine.state == State.WAIT_FINAL_OR_COMMA:
+                proces_next_token = [x if x in [
+                    self.tokenizer(","), self.tokenizer("}")
+                    ] else float("-inf") for x in proces_next_token]
             if machine.state == State.FINAL:
                 break
             logits = sorted(range(len(proces_next_token)),
                             key=lambda idx: proces_next_token[idx],
                             reverse=True)
+            found = False
             for next_token in logits:
-                if machine.verif_correct_now(self.decode([next_token])):
-                    machine.proces_token(self.decode([next_token]))
+                print(self.decode([next_token]))
+                print(machine.state.name)
+                if (n := machine.read_dict_value) is not None:
+                    print(n.state.name)
+                if machine.verif_correct_now(self.decode([next_token]),
+                                             prompt_base):
+                    machine.proces_token(self.decode([next_token]),
+                                         prompt_base)
                     input_ids.append(next_token)
                     result.append(next_token)
                     generated_tokens += 1
                     eos_token = self.dic_ecoder.get("</s>")
+                    found = True
+                    print(self.decode(result), end="\n\n")
                     break
+            if not found:
+                exit(1)
             if next_token == eos_token:
                 break
             if generated_tokens >= max_tokens:
@@ -137,4 +156,4 @@ class Small_llm:
                     "The functions "
                     "that you have are: " + functions_text)
         new_prompt = "\nUser: " + prompt + "\nAssistant: "
-        return self.generator(sys_prom + new_prompt, parameters)
+        return self.generator(sys_prom + new_prompt, parameters, prompt)

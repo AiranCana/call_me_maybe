@@ -17,11 +17,11 @@ class Parser_llm:
         self.tipe_value = ""
         self.read_dict_value = None
 
-    def proces_token(self, token: str) -> None:
+    def proces_token(self, token: str, prompt: str) -> None:
         for char in token:
-            self.__trancriptor(char)
+            self.__trancriptor(char, prompt)
 
-    def __trancriptor(self, char: str) -> None:
+    def __trancriptor(self, char: str, prompt: str) -> None:
         if char.isspace() and self.state not in [
            State.READ_KEY, State.READ_VALUE]:
             return
@@ -76,21 +76,21 @@ class Parser_llm:
                     else:
                         self.read_dict_value = Parser_llm(
                             self.parameters[n])
-                        self.read_dict_value.proces_token(char)
+                        self.read_dict_value.proces_token(char, prompt)
                         self.state = State.READ_VALUE
                 else:
                     self.state = State.INVALID
             case State.READ_VALUE:
-                self.__read_value(char)
+                self.__read_value(char, prompt)
             case State.WAIT_FINAL_OR_COMMA:
-                if char == ',':
+                if char == ',' and len(self.stract_data) < len(self.dis_key):
                     self.state = State.WAIT_KEY
                 elif char == '}':
                     self.state = State.FINAL
                 else:
                     self.state = State.INVALID
 
-    def __read_value(self, char: str) -> None:
+    def __read_value(self, char: str, prompt: str) -> None:
         match self.tipe_value:
             case "string":
                 if char == '"' and not self.buffer.endswith("\\"):
@@ -105,6 +105,12 @@ class Parser_llm:
                                 self.state = State.INVALID
                         else:
                             self.__asign_value(value)
+                    elif (self.stract_data.get("prompt", None) is None and
+                          self.actual_key == "prompt"):
+                        if (self.buffer == prompt):
+                            self.__asign_value(value)
+                        else:
+                            self.state = State.INVALID
                     else:
                         self.__asign_value(value)
                 else:
@@ -119,6 +125,12 @@ class Parser_llm:
                                 self.state = State.INVALID
                         else:
                             self.buffer += char
+                    elif (self.stract_data.get("prompt", None) is None and
+                          self.actual_key == "prompt"):
+                        if prompt.startswith((self.buffer + char)):
+                            self.buffer += char
+                        else:
+                            self.state = State.INVALID
                     else:
                         self.buffer += char
             case "number":
@@ -130,7 +142,7 @@ class Parser_llm:
                         self.state = State.INVALID
                         return
                     self.__asign_value(float(value))
-                    self.__trancriptor(char)
+                    self.__trancriptor(char, prompt)
                 else:
                     if char in "0123456789.":
                         if ((char == "." and self.buffer.find(".") + 1) or
@@ -144,16 +156,26 @@ class Parser_llm:
                 if self.read_dict_value.state == State.FINAL:
                     value = self.read_dict_value.stract_data
                     self.__asign_value(value)
-                    self.__trancriptor(char)
+                    self.__trancriptor(char, prompt)
                 else:
-                    self.read_dict_value.proces_token(char)
+                    self.read_dict_value.proces_token(char, prompt)
                     if self.read_dict_value.state == State.INVALID:
                         self.state = State.INVALID
 
     def __asign_value(self, value: Any) -> None:
+        if isinstance(value, str):
+            value2 = f'"{value}"'
+        elif isinstance(value, dict):
+            value2 = f'{value}'.replace("'", '"')
+        else:
+            value2 = value
+        text = "{" + f'"{self.actual_key}": {value2}' + "}"
         try:
-            json.loads("{" + f"{self.actual_key}: {value}" + "}")
-        except Exception:
+            json.loads(text)
+        except Exception as e:
+            print(e)
+            print(text)
+            print("Invalid Json")
             self.state = State.INVALID
             return
         if (self.actual_key in self.objetive_keys or
@@ -172,7 +194,7 @@ class Parser_llm:
             news.read_dict_value = self.read_dict_value.new_parser()
         return news
 
-    def verif_correct_now(self, token: str) -> bool:
+    def verif_correct_now(self, token: str, prompt: str) -> bool:
         pruber = self.new_parser()
-        pruber.proces_token(token)
+        pruber.proces_token(token, prompt)
         return pruber.state != State.INVALID and len(token) != 0
