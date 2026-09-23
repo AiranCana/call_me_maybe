@@ -48,6 +48,7 @@ class Small_llm:
     def generator(self, prompt: str, parameters: dict[str, dict[str, str]],
                   prompt_base: str, max_tokens: int = 400) -> str:
         input_ids = self.tokenizer(prompt)
+        escaped_prompt_base = json.dumps(prompt_base)[1:-1]
         result = []
         generated_tokens = 0
         machine = Parser_llm(dicts, parameters)
@@ -68,7 +69,7 @@ class Small_llm:
                     proces_next_token[self.tokenizer(':')[0]] = float("inf")
                 if n.state == State.WAIT_FINAL_OR_COMMA:
                     proces_next_token = [x if x in [
-                        self.tokenizer(","), self.tokenizer("}}")
+                        self.tokenizer(","), self.tokenizer("}")
                         ] else float("-inf") for x in proces_next_token]
             if machine.state == State.WAIT_FINAL_OR_COMMA:
                 proces_next_token = [x if x in [
@@ -81,22 +82,18 @@ class Small_llm:
                             reverse=True)
             found = False
             for next_token in logits:
-                print(self.decode([next_token]))
-                print(machine.state.name)
-                if (n := machine.read_dict_value) is not None:
-                    print(n.state.name)
                 if machine.verif_correct_now(self.decode([next_token]),
-                                             prompt_base):
+                                             escaped_prompt_base):
                     machine.proces_token(self.decode([next_token]),
-                                         prompt_base)
+                                         escaped_prompt_base)
                     input_ids.append(next_token)
                     result.append(next_token)
                     generated_tokens += 1
                     eos_token = self.dic_ecoder.get("</s>")
                     found = True
-                    print(self.decode(result), end="\n\n")
                     break
             if not found:
+                print("Error: Can't predict next token")
                 exit(1)
             if next_token == eos_token:
                 break
@@ -146,7 +143,7 @@ class Small_llm:
         sys_prom = ("System: "
                     "You are a function calling assistant. "
                     "You will give a json with this parameters: "
-                    "prompt (that is the prompt of user, is the same rpompt,"
+                    "prompt (that is the prompt of user, is the same prompt,"
                     " letter for letter), "
                     "name (the name of function), "
                     "parameters (the parameters of the function). "

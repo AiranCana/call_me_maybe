@@ -5,7 +5,9 @@ from pydantic import TypeAdapter, ValidationError
 from typing import Any
 from src.parsers import PathConfig, parser_jsons, Funtion_defined
 import json
+from tqdm import tqdm
 from src import Small_llm
+from src.new_parser import parser
 
 
 def parse_args() -> argparse.Namespace:
@@ -37,9 +39,9 @@ def main() -> int:
             output=Path(args.output)
         )
         model = Small_llm()
+        prompts = [x.prompt for x in path_config.input]
         refine = [
-                __opten_results(path_config, i, model) for i in range(
-                    len(path_config.input))
+                __opten_results(path_config, i, model) for i in tqdm(prompts)
             ]
         result = [x for x in refine if x is not None]
         path_config.verif_output(result)
@@ -56,12 +58,12 @@ def main() -> int:
     return 0
 
 
-def __opten_results(path_config: PathConfig, i: int,
+def __opten_results(path_config: PathConfig, i: str,
                     model: Small_llm) -> Any:
     data = __string_to_json(
         __opten_result(
             __opten_dict(path_config.functions_definition),
-            path_config.input[i].prompt,
+            i,
             model
         )
     )
@@ -93,4 +95,5 @@ def __opten_result(dic: list[dict[str, Any]],
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    parser()
+    # sys.exit(main())

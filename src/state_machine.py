@@ -165,17 +165,12 @@ class Parser_llm:
     def __asign_value(self, value: Any) -> None:
         if isinstance(value, str):
             value2 = f'"{value}"'
-        elif isinstance(value, dict):
-            value2 = f'{value}'.replace("'", '"')
         else:
             value2 = value
-        text = "{" + f'"{self.actual_key}": {value2}' + "}"
+        text = json.dumps({self.actual_key: value2})
         try:
             json.loads(text)
-        except Exception as e:
-            print(e)
-            print(text)
-            print("Invalid Json")
+        except Exception:
             self.state = State.INVALID
             return
         if (self.actual_key in self.objetive_keys or
