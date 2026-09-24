@@ -68,11 +68,11 @@ def __verif_json(jsons: Path, exist: bool = True) -> bool:
     return True
 
 
-def parser() -> tuple[Jsons, str, bool]:
+def parser() -> tuple[Jsons, Path, bool]:
     args = __parse_args()
     funts = Path(args.functions_definition)
     inputs = Path(args.input)
-    output = Path(args.input)
+    output = Path(args.output)
     for i in [[funts, True], [inputs, True], [output, False]]:
         if not __verif_json(i[0], i[1]):
             raise ValueError(f"Bad Input in {i[0]}")
