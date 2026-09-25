@@ -3,6 +3,7 @@ from pathlib import Path
 from pydantic import ValidationError
 from typing import Any
 import json
+import re
 from tqdm import tqdm
 from src import Small_llm
 from src.parser import parser, Output
@@ -47,8 +48,12 @@ def __string_to_json(str: str | None) -> Any:
         return None
     try:
         return json.loads(str)
-    except json.JSONDecodeError as e:
-        raise ValueError(f"Invalid JSON string: {e}\n{str}")
+    except json.JSONDecodeError:
+        str = re.sub(r'\\(?!["\\/bfnrtu])', r'\\\\', str)
+        try:
+            return json.loads(str)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid JSON string: {e}\n{str}")
 
 
 def __opten_result(prompt: str, model: Small_llm) -> str | None:
