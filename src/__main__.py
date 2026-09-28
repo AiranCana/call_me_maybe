@@ -28,9 +28,9 @@ def main() -> int:
         msgs = [err["msg"] for err in e.errors()]
         print(f"Error: {'; '.join(msgs)}", file=sys.stderr)
         return 1
-    # except Exception as e:
-    #     print(f"Error: {e}", file=sys.stderr)
-    #     return 1
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
     return 0
 
 

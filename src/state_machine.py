@@ -27,10 +27,7 @@ class Parser_llm:
             return
         match self.state:
             case State.FIND_BRACKET:
-                if char == '{':
-                    self.state = State.WAIT_KEY
-                else:
-                    self.state = State.INVALID
+                self.__wait_one_thing(char, "{", State.WAIT_KEY)
             case State.WAIT_KEY:
                 if char == '"':
                     self.buffer = ""
@@ -38,120 +35,71 @@ class Parser_llm:
                 else:
                     self.state = State.INVALID
             case State.READ_KEY:
-                if char == '"':
-                    if self.buffer in self.objetive_keys.keys():
-                        if self.buffer == self.dis_key[
-                           len(self.stract_data)]:
-                            self.actual_key = self.buffer
-                            self.state = State.WAIT_COLON
-                            self.tipe_value = self.objetive_keys[
-                                self.actual_key]
-                        else:
-                            self.state = State.INVALID
-                    else:
-                        self.state = State.INVALID
-                    self.buffer = ""
-                else:
-                    self.buffer += char
-                    if not (self.dis_key[len(self.stract_data)].
-                       startswith(self.buffer)):
-                        self.state = State.INVALID
+                self.__read_key(char)
             case State.WAIT_COLON:
-                if char == ':':
-                    self.state = State.WAIT_VALUE
-                else:
-                    self.state = State.INVALID
+                self.__wait_one_thing(char, ":", State.WAIT_VALUE)
             case State.WAIT_VALUE:
-                if char == '"' and self.tipe_value == "string":
-                    self.state = State.READ_VALUE
-                elif ((char.isdigit() or char == '-') and
-                      self.tipe_value == "number"):
-                    self.state = State.READ_VALUE
-                    self.buffer += char
-                elif char == "{" and self.tipe_value == "dic":
-                    if (n := self.stract_data.get("name", None)) is None:
-                        self.state = State.INVALID
-                    elif n not in self.parameters.keys():
-                        self.state = State.INVALID
-                    else:
-                        self.read_dict_value = Parser_llm(
-                            self.parameters[n])
-                        self.read_dict_value.proces_token(char, prompt)
-                        self.state = State.READ_VALUE
-                else:
-                    self.state = State.INVALID
+                self.__wait_value(char, prompt)
             case State.READ_VALUE:
                 self.__read_value(char, prompt)
             case State.WAIT_FINAL_OR_COMMA:
                 if char == ',' and len(self.stract_data) < len(self.dis_key):
                     self.state = State.WAIT_KEY
-                elif char == '}':
-                    self.state = State.FINAL
+                else:
+                    self.__wait_one_thing(char, "}", State.FINAL)
+
+    def __wait_one_thing(self, char: str, thing: str, value: State) -> None:
+        if char == thing:
+            self.state = value
+        else:
+            self.state = State.INVALID
+
+    def __wait_value(self, char: str, prompt: str) -> None:
+        if char == '"' and self.tipe_value == "string":
+            self.state = State.READ_VALUE
+        elif ((char.isdigit() or char == '-') and
+              self.tipe_value == "number"):
+            self.state = State.READ_VALUE
+            self.buffer += char
+        elif char == "{" and self.tipe_value == "dic":
+            if (n := self.stract_data.get("name", None)) is None:
+                self.state = State.INVALID
+            elif n not in self.parameters.keys():
+                self.state = State.INVALID
+            else:
+                self.read_dict_value = Parser_llm(
+                            self.parameters[n])
+                self.read_dict_value.proces_token(char, prompt)
+                self.state = State.READ_VALUE
+        else:
+            self.state = State.INVALID
+
+    def __read_key(self, char: str) -> None:
+        if char == '"':
+            if self.buffer in self.objetive_keys.keys():
+                if self.buffer == self.dis_key[
+                           len(self.stract_data)]:
+                    self.actual_key = self.buffer
+                    self.state = State.WAIT_COLON
+                    self.tipe_value = self.objetive_keys[
+                                self.actual_key]
                 else:
                     self.state = State.INVALID
+            else:
+                self.state = State.INVALID
+            self.buffer = ""
+        else:
+            self.buffer += char
+            if not (self.dis_key[len(self.stract_data)].
+                    startswith(self.buffer)):
+                self.state = State.INVALID
 
     def __read_value(self, char: str, prompt: str) -> None:
         match self.tipe_value:
             case "string":
-                if char == '"' and not self.buffer.endswith("\\"):
-                    value = self.buffer
-                    if (self.stract_data.get("name", None) is None and
-                       self.actual_key == "name"):
-                        if len(self.parameters) != 0:
-                            if any(x == self.buffer for x in self.
-                                   parameters.keys()):
-                                self.__asign_value(value)
-                            else:
-                                self.state = State.INVALID
-                        else:
-                            self.__asign_value(value)
-                    elif (self.stract_data.get("prompt", None) is None and
-                          self.actual_key == "prompt"):
-                        if (self.buffer == prompt):
-                            self.__asign_value(value)
-                        else:
-                            self.state = State.INVALID
-                    else:
-                        self.__asign_value(value)
-                else:
-                    if (self.stract_data.get("name", None) is None and
-                       self.actual_key == "name"):
-                        if len(self.parameters) != 0:
-                            if any(x.startswith(
-                                self.buffer + char) for x in self.
-                                   parameters.keys()):
-                                self.buffer += char
-                            else:
-                                self.state = State.INVALID
-                        else:
-                            self.buffer += char
-                    elif (self.stract_data.get("prompt", None) is None and
-                          self.actual_key == "prompt"):
-                        if prompt.startswith((self.buffer + char)):
-                            self.buffer += char
-                        else:
-                            self.state = State.INVALID
-                    else:
-                        self.buffer += char
+                self.__read_value_str(char, prompt)
             case "number":
-                if char in (',', '}', ' ', '\t', '\n'):
-                    try:
-                        float(self.buffer)
-                        value = self.buffer
-                    except ValueError:
-                        self.state = State.INVALID
-                        return
-                    self.__asign_value(float(value))
-                    self.__trancriptor(char, prompt)
-                else:
-                    if char in "0123456789.":
-                        if ((char == "." and self.buffer.find(".") + 1) or
-                           (char == "." and self.buffer == "")):
-                            self.state = State.INVALID
-                        else:
-                            self.buffer += char
-                    else:
-                        self.state = State.INVALID
+                return self.__read_value_num(char, prompt)
             case "dic":
                 if self.read_dict_value.state == State.FINAL:
                     value = self.read_dict_value.stract_data
@@ -161,6 +109,72 @@ class Parser_llm:
                     self.read_dict_value.proces_token(char, prompt)
                     if self.read_dict_value.state == State.INVALID:
                         self.state = State.INVALID
+
+    def __read_value_num(self, char: str, prompt: str) -> None:
+        if char in (',', '}', ' ', '\t', '\n'):
+            try:
+                float(self.buffer)
+                value = self.buffer
+            except ValueError:
+                self.state = State.INVALID
+                return
+            self.__asign_value(float(value))
+            self.__trancriptor(char, prompt)
+        else:
+            if char in "0123456789.":
+                if ((char == "." and self.buffer.find(".") + 1) or
+                   (char == "." and self.buffer == "")):
+                    self.state = State.INVALID
+                else:
+                    self.buffer += char
+            else:
+                self.state = State.INVALID
+
+    def __read_value_str(self, char: str, prompt: str) -> None:
+        if char == '"' and not self.buffer.endswith("\\"):
+            self.__finish_read_value_str(prompt)
+        else:
+            self.__continue_read_value_str(char, prompt)
+
+    def __continue_read_value_str(self, char: str, prompt: str) -> None:
+        if (self.stract_data.get("name", None) is None and
+           self.actual_key == "name"):
+            if len(self.parameters) != 0:
+                if any(x.startswith(
+                         self.buffer + char) for x in self.parameters.keys()):
+                    self.buffer += char
+                else:
+                    self.state = State.INVALID
+            else:
+                self.buffer += char
+        elif (self.stract_data.get("prompt", None) is None and
+              self.actual_key == "prompt"):
+            if prompt.startswith((self.buffer + char)):
+                self.buffer += char
+            else:
+                self.state = State.INVALID
+        else:
+            self.buffer += char
+
+    def __finish_read_value_str(self, prompt: str) -> None:
+        value = self.buffer
+        if (self.stract_data.get("name", None) is None and
+           self.actual_key == "name"):
+            if len(self.parameters) != 0:
+                if any(x == self.buffer for x in self.parameters.keys()):
+                    self.__asign_value(value)
+                else:
+                    self.state = State.INVALID
+            else:
+                self.__asign_value(value)
+        elif (self.stract_data.get("prompt", None) is None and
+              self.actual_key == "prompt"):
+            if (self.buffer == prompt):
+                self.__asign_value(value)
+            else:
+                self.state = State.INVALID
+        else:
+            self.__asign_value(value)
 
     def __asign_value(self, value: Any) -> None:
         if isinstance(value, str):
