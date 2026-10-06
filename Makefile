@@ -7,6 +7,7 @@ install:
 	@echo "Setting up virtual environment..."
 	@$(COMAND) sync
 	@echo "Done."
+	@$(COMAND) add --dev types-tqdm
 	@ echo "*#################%@@@@@@@@@@@@@@@@@@@%%%%%%%%%%%%%%%#######%%%%%@@@@@@@@@@@@@%:.-%%%%%#-   .:==+#%%@@=          =*      -#%%%%%%%%%%@@*               "
 	@ echo "+*#################%@@@@@@@@@@@@@@@@@@@@@@@%%%%%%%%%%%%%%%@@@@@@@@@@@@@@@@@@@@*.:*%%%%%+..:..::-+%@@@#          *#*      #%%%%%%%%%@@@*                "
 	@ echo "+*############%######%%@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@= .%@@@@*.   .:-.:#%@@%.         +%*      =#%%%%%%%%@@@@                 "
@@ -105,8 +106,8 @@ install:
 	@ echo "                                                                                                                                                       "
 	@ echo "                                                                                                                                                       " 
 
-export HF_HOME=/sgoinfre/students/acanadil/.hf-cache
-export UV_CACHE_DIR=/sgoinfre/students/acanadil/.uv-cache
+export HF_HOME=/goinfre/acanadil/.hf-cache
+export UV_CACHE_DIR=/goinfre/acanadil/.uv-cache
 
 run:
 	@$(EXECUTE) $(NAME) $(ARGS)

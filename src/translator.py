@@ -12,6 +12,8 @@ dicts: dict[str, str] = {
     "parameters": "dic"
 }
 
+MODEL = "Qwen/Qwen3-0.6B"
+
 
 class Small_llm:
     def __init__(self, functions: list[dict[str, Any]]) -> None:
@@ -26,10 +28,10 @@ class Small_llm:
         except Exception as e:
             raise ValueError(e)
 
-    def __generate_model(self):
+    def __generate_model(self) -> None:
         self.__encoder = self.__bytes_to_unicode()
         self.__decoder = {k: v for v, k in self.__encoder.items()}
-        self.model = Small_LLM_Model()
+        self.model = Small_LLM_Model(model_name=MODEL)
         self.dic_ecoder: dict[str, int] = json.loads(
                 Path(self.model.get_path_to_vocab_file())
                 .read_text(encoding="utf-8"))
@@ -42,24 +44,22 @@ class Small_llm:
         self.__generate_special_tokens()
 
     def __generate_special_tokens(self) -> None:
-        self._id_open_bracket = self.__tokenizer("{")[0]
-        self._id_quote = self.__tokenizer('"')[0]
-        self._id_colon = self.__tokenizer(":")[0]
-        self._id_comma = self.__tokenizer(",")[0]
-        self._id_close_brace = self.__tokenizer("}")[0]
+        self._id_open_bracket = self.tokenizer("{")[0]
+        self._id_quote = self.tokenizer('"')[0]
+        self._id_colon = self.tokenizer(":")[0]
+        self._id_comma = self.tokenizer(",")[0]
+        self._id_close_brace = self.tokenizer("}")[0]
 
     def __generate_sys_prompt(self, functions: list[dict[str, Any]]) -> None:
         for x in functions:
             x["returns"] = x["returns"].__dict__
             for key, val in x["parameters"].items():
                 x["parameters"][key] = val.__dict__
-        functions_text = json.dumps(functions, indent=2)
+        functions_text = json.dumps(functions, separators=(",", ":"))
         self.sys_prom = ("System: "
-                         "You will give a json with this stile: "
-                         '{"prompt": "user_prompt", "name": "funtion_name",'
-                         ' "parameters": value}'
-                         "The functions: <tools>" + functions_text +
-                         "</tools>")
+                         'Output JSON: {"prompt":str (user prompt),'
+                         '"name":str (funtion name),"parameters":obj}. '
+                         "Functions: " + functions_text)
 
     def __bytes_to_unicode(self) -> dict[int, str]:
         bas = (list(range(ord("!"), ord("~") + 1)) +
@@ -76,9 +76,9 @@ class Small_llm:
 
     def __generator(self, prompt: str,
                     prompt_base: str, max_tokens: int = 400) -> str:
-        input_ids = self.__tokenizer(prompt)
+        input_ids = self.tokenizer(prompt)
         escaped_prompt_base = json.dumps(prompt_base)[1:-1]
-        result = []
+        result: list[int] = []
         generated_tokens = 0
         machine = Parser_llm(dicts, self.parameters)
         while True:
@@ -91,7 +91,7 @@ class Small_llm:
                             reverse=True)
             found = False
             for next_token in logits:
-                if machine.verif_correct_now(self.__decode([next_token]),
+                if machine.verif_correct_now(self.decode([next_token]),
                                              escaped_prompt_base):
                     found, eos_token = self.__asign_token(
                         input_ids, escaped_prompt_base, result, machine,
@@ -101,13 +101,13 @@ class Small_llm:
                 raise ValueError("Error: Can't predict next token")
             if next_token == eos_token or generated_tokens >= max_tokens:
                 break
-        return self.__decode(result)
+        return self.decode(result)
 
     def __asign_token(
             self, input_ids: list[int], escaped_prompt_base: str,
             result: list[int], machine: Parser_llm,
-            next_token: int | float) -> tuple[bool, int | None]:
-        machine.proces_token(self.__decode([next_token]), escaped_prompt_base)
+            next_token: int) -> tuple[bool, int | None]:
+        machine.proces_token(self.decode([next_token]), escaped_prompt_base)
         input_ids.append(next_token)
         result.append(next_token)
         eos_token = self.dic_ecoder.get("</s>")
@@ -149,7 +149,7 @@ class Small_llm:
         prom_bytes = prompt.encode("utf-8")
         return "".join(self.__encoder[b] for b in prom_bytes)
 
-    def __tokenizer(self, prompt: str) -> list[int]:
+    def tokenizer(self, prompt: str) -> list[int]:
         inputs_id = []
         prompt = self.__transformer(prompt)
         i = 0
@@ -170,7 +170,7 @@ class Small_llm:
                 i += 1
         return inputs_id
 
-    def __decode(self, tokens: list[int]) -> str:
+    def decode(self, tokens: list[int]) -> str:
         out_byte = "".join(self.dic_decoder.get(tok, "") for tok in tokens)
         text = bytes(self.__decoder[ch] for ch in out_byte
                      if ch in self.__decoder)

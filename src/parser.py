@@ -6,7 +6,7 @@ import json
 
 
 class TypeSpec(BaseModel):
-    type: Literal["string", "number", "boolean"]
+    type: Literal["string", "number", "boolean", "integer"]
 
 
 class Funtions(BaseModel):
@@ -51,7 +51,7 @@ def __parse_args() -> Namespace:
     return parser.parse_args()
 
 
-def __read_json(jsons: Path) -> str:
+def __read_json(jsons: Path) -> Any:
     try:
         return json.loads(jsons.read_text(encoding="utf-8"))
     except Exception:
@@ -73,7 +73,9 @@ def parser() -> tuple[Jsons, Path, bool]:
     funts = Path(args.functions_definition)
     inputs = Path(args.input)
     output = Path(args.output)
-    for i in [[funts, True], [inputs, True], [output, False]]:
+    result: list[tuple[Path, bool]] = [(funts, True), (inputs, True),
+                                       (output, False)]
+    for i in result:
         if not __verif_json(i[0], i[1]):
             raise ValueError(f"Bad Input in {i[0]}")
     dic = {"funtions": __read_json(funts), "prompts": __read_json(inputs)}

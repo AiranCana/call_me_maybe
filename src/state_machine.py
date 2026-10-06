@@ -1,5 +1,5 @@
 from src.enum import State
-from typing import Any
+from typing import Any, Optional
 import json
 
 
@@ -13,9 +13,9 @@ class Parser_llm:
         self.state = State.FIND_BRACKET
         self.buffer = ""
         self.actual_key = ""
-        self.stract_data = {}
+        self.stract_data: dict[str, Any] = {}
         self.tipe_value = ""
-        self.read_dict_value = None
+        self.read_dict_value: Optional[Parser_llm] = None
 
     def proces_token(self, token: str, prompt: str) -> None:
         for char in token:
@@ -61,6 +61,10 @@ class Parser_llm:
               self.tipe_value == "number"):
             self.state = State.READ_VALUE
             self.buffer += char
+        elif ((char.isdigit() or char == '-') and
+              self.tipe_value == "integer"):
+            self.state = State.READ_VALUE
+            self.buffer += char
         elif char == "{" and self.tipe_value == "dic":
             if (n := self.stract_data.get("name", None)) is None:
                 self.state = State.INVALID
@@ -99,29 +103,41 @@ class Parser_llm:
             case "string":
                 self.__read_value_str(char, prompt)
             case "number":
-                return self.__read_value_num(char, prompt)
+                return self.__read_value_num(char, prompt, "number")
+            case "integer":
+                return self.__read_value_num(char, prompt, "integer")
             case "dic":
-                if self.read_dict_value.state == State.FINAL:
+                if (self.read_dict_value is not None and
+                   self.read_dict_value.state == State.FINAL):
                     value = self.read_dict_value.stract_data
                     self.__asign_value(value)
                     self.__trancriptor(char, prompt)
-                else:
+                elif self.read_dict_value is not None:
                     self.read_dict_value.proces_token(char, prompt)
                     if self.read_dict_value.state == State.INVALID:
                         self.state = State.INVALID
 
-    def __read_value_num(self, char: str, prompt: str) -> None:
+    def __read_value_num(self, char: str, prompt: str,
+                         value_type: str) -> None:
+        value: int | float
         if char in (',', '}', ' ', '\t', '\n'):
             try:
-                float(self.buffer)
-                value = self.buffer
+                if value_type == "integer":
+                    value = int(self.buffer)
+                elif self.buffer.find(".") + 1 != 0:
+                    value = float(self.buffer)
+                else:
+                    raise ValueError
             except ValueError:
                 self.state = State.INVALID
                 return
             self.__asign_value(float(value))
             self.__trancriptor(char, prompt)
         else:
-            if char in "0123456789.":
+            permit = "0123456789"
+            if value_type == "number":
+                permit += "."
+            if char in permit:
                 if ((char == "." and self.buffer.find(".") + 1) or
                    (char == "." and self.buffer == "")):
                     self.state = State.INVALID
