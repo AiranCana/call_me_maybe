@@ -13,10 +13,12 @@ dicts: dict[str, str] = {
 }
 
 MODEL = "Qwen/Qwen3-0.6B"
+MAX_TOKEN_RETURN = 400
 
 
 class Small_llm:
-    def __init__(self, functions: list[dict[str, Any]]) -> None:
+    def __init__(self, functions: list[dict[str, Any]],
+                 name_model: str | None = None) -> None:
         self.parameters = {
             funtion["name"]: {
                 k: v.type for k, v in funtion["parameters"].items()
@@ -24,14 +26,17 @@ class Small_llm:
         }
         self.__generate_sys_prompt(functions)
         try:
-            self.__generate_model()
+            self.__generate_model(name_model)
         except Exception as e:
             raise ValueError(e)
 
-    def __generate_model(self) -> None:
+    def __generate_model(self, name_model: str | None) -> None:
         self.__encoder = self.__bytes_to_unicode()
         self.__decoder = {k: v for v, k in self.__encoder.items()}
-        self.model = Small_LLM_Model(model_name=MODEL)
+        if name_model is not None:
+            self.model = Small_LLM_Model(model_name=name_model)
+        else:
+            self.model = Small_LLM_Model(model_name=MODEL)
         self.dic_ecoder: dict[str, int] = json.loads(
                 Path(self.model.get_path_to_vocab_file())
                 .read_text(encoding="utf-8"))
@@ -44,11 +49,11 @@ class Small_llm:
         self.__generate_special_tokens()
 
     def __generate_special_tokens(self) -> None:
-        self._id_open_bracket = self.tokenizer("{")[0]
-        self._id_quote = self.tokenizer('"')[0]
-        self._id_colon = self.tokenizer(":")[0]
-        self._id_comma = self.tokenizer(",")[0]
-        self._id_close_brace = self.tokenizer("}")[0]
+        self._id_open_bracket = self.encode("{")[0]
+        self._id_quote = self.encode('"')[0]
+        self._id_colon = self.encode(":")[0]
+        self._id_comma = self.encode(",")[0]
+        self._id_close_brace = self.encode("}")[0]
 
     def __generate_sys_prompt(self, functions: list[dict[str, Any]]) -> None:
         for x in functions:
@@ -76,12 +81,14 @@ class Small_llm:
 
     def __generator(self, prompt: str,
                     prompt_base: str, max_tokens: int = 400) -> str:
-        input_ids = self.tokenizer(prompt)
+        input_ids = self.encode(prompt)
         escaped_prompt_base = json.dumps(prompt_base)[1:-1]
         result: list[int] = []
         generated_tokens = 0
         machine = Parser_llm(dicts, self.parameters)
         while True:
+            if machine.state == State.FINAL:
+                break
             next_token_posi = self.__get_next_posible_tokens(input_ids,
                                                              machine)
             if machine.state == State.FINAL:
@@ -98,7 +105,8 @@ class Small_llm:
                         next_token)
                     break
             if not found:
-                raise ValueError("Error: Can't predict next token")
+                raise ValueError("Error: Can't predict next token"
+                                 "result: progress: " + self.decode(result))
             if next_token == eos_token or generated_tokens >= max_tokens:
                 break
         return self.decode(result)
@@ -149,7 +157,7 @@ class Small_llm:
         prom_bytes = prompt.encode("utf-8")
         return "".join(self.__encoder[b] for b in prom_bytes)
 
-    def tokenizer(self, prompt: str) -> list[int]:
+    def encode(self, prompt: str) -> list[int]:
         inputs_id = []
         prompt = self.__transformer(prompt)
         i = 0
