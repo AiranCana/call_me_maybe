@@ -57,6 +57,9 @@ class Parser_llm:
             self.state = State.INVALID
 
     def __wait_value(self, char: str, prompt: str) -> None:
+        if char == 'T' or char == 'F' and self.tipe_value == "boolean":
+            self.state = State.READ_VALUE
+            self.buffer += char
         if char == '"' and self.tipe_value == "string":
             self.state = State.READ_VALUE
         elif ((char.isdigit() or char == '-') and
@@ -118,6 +121,14 @@ class Parser_llm:
                     self.read_dict_value.proces_token(char, prompt)
                     if self.read_dict_value.state == State.INVALID:
                         self.state = State.INVALID
+            case "boolean":
+                if self.buffer + char in ["True", "False"]:
+                    self.buffer += char
+                    self.__asign_value(self.buffer == "True")
+                elif char not in "TrueFals":
+                    self.state = State.INVALID
+                else:
+                    self.buffer += char
 
     def __read_value_num(self, char: str, prompt: str,
                          value_type: str) -> None:
