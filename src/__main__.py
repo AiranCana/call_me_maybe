@@ -11,21 +11,8 @@ from src.parser import parser, Output
 
 def main() -> int:
     try:
-        if len(sys.argv) > 3:
-            print("Usage: make run ARGS=\" --input <input_file> --output"
-                  " <output_file> --functions_definition <functions_file>\"",
-                  file=sys.stderr)
-            return 1
-        if len(sys.argv) == 2 and not sys.argv[1].startswith("--"):
-            model_name = sys.argv[1]
-        elif len(sys.argv) == 3:
-            if sys.argv[2].startswith("--"):
-                model_name = sys.argv[2]
-            else:
-                model_name = sys.argv[1]
-        datas, output, exist = parser()
-        model = Small_llm([x.__dict__ for x in datas.funtions],
-                          name_model=model_name)
+        datas, output, exist, model_name = parser()
+        model = Small_llm([x.__dict__ for x in datas.funtions], model_name)
         prompts = [x.prompt for x in datas.prompts]
         refine = [
                 __opten_results(i, model) for i in tqdm(prompts)
@@ -39,10 +26,10 @@ def main() -> int:
         generate_output(output, result)
     except ValidationError as e:
         msgs = [err["msg"] for err in e.errors()]
-        print(f"Error: {'; '.join(msgs)}", file=sys.stderr)
+        tqdm.write(f"Error: {'; '.join(msgs)}", file=sys.stderr)
         return 1
     except Exception as e:
-        print(f"Error: {e}", file=sys.stderr)
+        tqdm.write(f"Error: {e}", file=sys.stderr)
         return 1
     return 0
 
@@ -56,7 +43,7 @@ def __opten_results(i: str, model: Small_llm) -> Any:
     try:
         return __string_to_json(__opten_result(i, model))
     except Exception as e:
-        print(f"Error processing prompt '{i}': {e}", file=sys.stderr)
+        tqdm.write(f"Error processing prompt '{i}': {e}", file=sys.stderr)
         return None
 
 
@@ -78,7 +65,7 @@ def __opten_result(prompt: str, model: Small_llm) -> str | None:
     try:
         return model.communication(prompt)
     except Exception as e:
-        print(f"{e}")
+        tqdm.write(f"Error processing prompt '{prompt}': {e}", file=sys.stderr)
     return None
 
 

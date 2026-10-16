@@ -48,6 +48,11 @@ def __parse_args() -> Namespace:
         type=str,
         default="data/output/function_calling_results.json",
     )
+    parser.add_argument(
+        "--model_name",
+        type=str,
+        default="Qwen/Qwen3-0.6B",
+    )
     return parser.parse_args()
 
 
@@ -68,7 +73,7 @@ def __verif_json(jsons: Path, exist: bool = True) -> bool:
     return True
 
 
-def parser() -> tuple[Jsons, Path, bool]:
+def parser() -> tuple[Jsons, Path, bool, str]:
     args = __parse_args()
     funts = Path(args.functions_definition)
     inputs = Path(args.input)
@@ -79,4 +84,4 @@ def parser() -> tuple[Jsons, Path, bool]:
         if not __verif_json(i[0], i[1]):
             raise ValueError(f"Bad Input in {i[0]}")
     dic = {"funtions": __read_json(funts), "prompts": __read_json(inputs)}
-    return Jsons.model_validate(dic), output, output.exists()
+    return Jsons.model_validate(dic), output, output.exists(), args.model_name

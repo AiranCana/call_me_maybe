@@ -47,6 +47,8 @@ class Parser_llm:
                     self.state = State.WAIT_KEY
                 else:
                     self.__wait_one_thing(char, "}", State.FINAL)
+            case State.FINAL:
+                self.state = State.INVALID
 
     def __wait_one_thing(self, char: str, thing: str, value: State) -> None:
         if char == thing:

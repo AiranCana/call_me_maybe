@@ -12,13 +12,12 @@ dicts: dict[str, str] = {
     "parameters": "dic"
 }
 
-MODEL = "Qwen/Qwen3-0.6B"
 MAX_TOKEN_RETURN = 400
 
 
 class Small_llm:
     def __init__(self, functions: list[dict[str, Any]],
-                 name_model: str | None = None) -> None:
+                 name_model: str) -> None:
         self.parameters = {
             funtion["name"]: {
                 k: v.type for k, v in funtion["parameters"].items()
@@ -30,13 +29,10 @@ class Small_llm:
         except Exception as e:
             raise ValueError(e)
 
-    def __generate_model(self, name_model: str | None) -> None:
+    def __generate_model(self, name_model: str) -> None:
         self.__encoder = self.__bytes_to_unicode()
         self.__decoder = {k: v for v, k in self.__encoder.items()}
-        if name_model is not None:
-            self.model = Small_LLM_Model(model_name=name_model)
-        else:
-            self.model = Small_LLM_Model(model_name=MODEL)
+        self.model = Small_LLM_Model(model_name=name_model)
         self.dic_ecoder: dict[str, int] = json.loads(
                 Path(self.model.get_path_to_vocab_file())
                 .read_text(encoding="utf-8"))
@@ -80,7 +76,8 @@ class Small_llm:
         return dict(zip(bas, [chr(c) for c in cast]))
 
     def __generator(self, prompt: str,
-                    prompt_base: str, max_tokens: int = 400) -> str:
+                    prompt_base: str,
+                    max_tokens: int = MAX_TOKEN_RETURN) -> str:
         input_ids = self.encode(prompt)
         escaped_prompt_base = json.dumps(prompt_base)[1:-1]
         result: list[int] = []
@@ -91,8 +88,6 @@ class Small_llm:
                 break
             next_token_posi = self.__get_next_posible_tokens(input_ids,
                                                              machine)
-            if machine.state == State.FINAL:
-                break
             logits = sorted(range(len(next_token_posi)),
                             key=lambda idx: next_token_posi[idx],
                             reverse=True)
@@ -100,27 +95,29 @@ class Small_llm:
             for next_token in logits:
                 if machine.verif_correct_now(self.decode([next_token]),
                                              escaped_prompt_base):
-                    found, eos_token = self.__asign_token(
+                    found = self.__asign_token(
                         input_ids, escaped_prompt_base, result, machine,
                         next_token)
+                    print("progress: " + self.decode(result))
+                    generated_tokens += 1
                     break
             if not found:
-                raise ValueError("Error: Can't predict next token"
-                                 "result: progress: " + self.decode(result))
-            if next_token == eos_token or generated_tokens >= max_tokens:
+                raise ValueError("Error: Can't predict next token "
+                                 "prompt: " + prompt +
+                                 "\nprogress: " + self.decode(result))
+            if generated_tokens >= max_tokens:
                 break
         return self.decode(result)
 
     def __asign_token(
             self, input_ids: list[int], escaped_prompt_base: str,
             result: list[int], machine: Parser_llm,
-            next_token: int) -> tuple[bool, int | None]:
+            next_token: int) -> bool:
         machine.proces_token(self.decode([next_token]), escaped_prompt_base)
         input_ids.append(next_token)
         result.append(next_token)
-        eos_token = self.dic_ecoder.get("</s>")
         found = True
-        return found, eos_token
+        return found
 
     def __get_next_posible_tokens(
             self,

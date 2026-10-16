@@ -110,10 +110,10 @@ export HF_HOME=/goinfre/acanadil/.hf-cache
 export UV_CACHE_DIR=/goinfre/acanadil/.uv-cache
 
 run:
-	@$(EXECUTE) $(NAME) $(ARGS) $(NAME_MODEL)
+	@$(EXECUTE) $(NAME) $(ARGS)
 
 debug:
-	@$(EXECUTE) pdb -m $(NAME) $(ARGS) $(NAME_MODEL)
+	@$(EXECUTE) pdb -m $(NAME) $(ARGS)
 
 clean:
 	@rm -rf __pycache__ .mypy_cache 
