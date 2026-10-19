@@ -11,8 +11,10 @@ from src.parser import parser, Output
 
 def main() -> int:
     try:
-        datas, output, exist, model_name = parser()
-        model = Small_llm([x.__dict__ for x in datas.funtions], model_name)
+        datas, output, exist, model_name, visual = parser()
+        model = Small_llm([x.__dict__ for x in datas.funtions],
+                          model_name,
+                          visual)
         prompts = [x.prompt for x in datas.prompts]
         refine = [
                 __opten_results(i, model) for i in tqdm(prompts)

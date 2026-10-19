@@ -57,10 +57,10 @@ class Parser_llm:
             self.state = State.INVALID
 
     def __wait_value(self, char: str, prompt: str) -> None:
-        if char == 'T' or char == 'F' and self.tipe_value == "boolean":
+        if (char == 't' or char == 'f') and self.tipe_value == "boolean":
             self.state = State.READ_VALUE
             self.buffer += char
-        if char == '"' and self.tipe_value == "string":
+        elif char == '"' and self.tipe_value == "string":
             self.state = State.READ_VALUE
         elif ((char.isdigit() or char == '-') and
               self.tipe_value == "number"):
@@ -122,10 +122,11 @@ class Parser_llm:
                     if self.read_dict_value.state == State.INVALID:
                         self.state = State.INVALID
             case "boolean":
-                if self.buffer + char in ["True", "False"]:
+                target = "true" if self.buffer[0] == "t" else "false"
+                if self.buffer + char in ["true", "false"]:
                     self.buffer += char
-                    self.__asign_value(self.buffer == "True")
-                elif char not in "TrueFals":
+                    self.__asign_value(self.buffer == "true")
+                elif not target.startswith(self.buffer + char):
                     self.state = State.INVALID
                 else:
                     self.buffer += char

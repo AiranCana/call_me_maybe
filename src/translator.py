@@ -3,6 +3,7 @@ from llm_sdk import Small_LLM_Model
 from typing import Any
 from pathlib import Path
 from src.enum import State
+from tqdm import tqdm
 from src.state_machine import Parser_llm
 import json
 
@@ -17,12 +18,13 @@ MAX_TOKEN_RETURN = 400
 
 class Small_llm:
     def __init__(self, functions: list[dict[str, Any]],
-                 name_model: str) -> None:
+                 name_model: str, visual: bool) -> None:
         self.parameters = {
             funtion["name"]: {
                 k: v.type for k, v in funtion["parameters"].items()
             } for funtion in functions
         }
+        self.visual = visual
         self.__generate_sys_prompt(functions)
         try:
             self.__generate_model(name_model)
@@ -86,27 +88,45 @@ class Small_llm:
         while True:
             if machine.state == State.FINAL:
                 break
-            next_token_posi = self.__get_next_posible_tokens(input_ids,
-                                                             machine)
+            next_token_posi, force = self.__get_next_posible_tokens(input_ids,
+                                                                    machine)
             logits = sorted(range(len(next_token_posi)),
                             key=lambda idx: next_token_posi[idx],
                             reverse=True)
+            text = "forced" if force else "recharged "
             found = False
-            for next_token in logits:
-                if machine.verif_correct_now(self.decode([next_token]),
+            for n in range(len(logits)):
+                if machine.verif_correct_now(self.decode([logits[n]]),
                                              escaped_prompt_base):
                     found = self.__asign_token(
                         input_ids, escaped_prompt_base, result, machine,
-                        next_token)
-                    print("progress: " + self.decode(result))
+                        logits[n])
+                    if self.visual:
+                        if text != "forced":
+                            text += f"{n} more probable tokens: "
+                            text += ", ".join(f"'{x}'" for x in logits[:n])
+                            if n == 0:
+                                text = "recharged, no more probable tokens"
+                            tqdm.write(f"[{machine.state.name}] "
+                                       "selected token: "
+                                       f"'{self.decode([logits[n]])}'"
+                                       f" ({text})")
+                        else:
+                            tqdm.write(f"[{machine.state.name}] "
+                                       "selected token: "
+                                       f"'{self.decode([logits[n]])}'"
+                                       f" ({text})", )
                     generated_tokens += 1
                     break
             if not found:
-                raise ValueError("Error: Can't predict next token "
+                raise ValueError("Error: Can't predict next token\n"
                                  "prompt: " + prompt +
                                  "\nprogress: " + self.decode(result))
             if generated_tokens >= max_tokens:
-                break
+                raise ValueError("Error: Can't generate more tokens,"
+                                 " max_tokens reached\n"
+                                 "prompt: " + prompt +
+                                 "\nprogress: " + self.decode(result))
         return self.decode(result)
 
     def __asign_token(
@@ -123,32 +143,43 @@ class Small_llm:
             self,
             input_ids: list[int],
             machine: Parser_llm
-            ) -> list[float]:
+            ) -> tuple[list[float], bool]:
         proces_next_token = self.model.get_logits_from_input_ids(input_ids)
+        force = False
         if machine.state == State.FIND_BRACKET:
             proces_next_token[self._id_open_bracket] = float("inf")
+            force = True
         if machine.state == State.WAIT_KEY:
             proces_next_token[self._id_quote] = float("inf")
+            force = True
         if machine.state == State.WAIT_COLON:
             proces_next_token[self._id_colon] = float("inf")
+            force = True
         if (n := machine.read_dict_value) is not None:
             if n.state == State.FIND_BRACKET:
                 proces_next_token[self._id_open_bracket] = float("inf")
+                force = True
             if n.state == State.WAIT_KEY:
                 proces_next_token[self._id_quote] = float("inf")
+                force = True
             if n.state == State.WAIT_COLON:
                 proces_next_token[self._id_colon] = float("inf")
+                force = True
             if n.state == State.WAIT_FINAL_OR_COMMA:
                 if len(n.stract_data) < len(n.dis_key):
                     proces_next_token[self._id_comma] = float("inf")
+                    force = True
                 else:
                     proces_next_token[self._id_close_brace] = float("inf")
+                    force = True
         if machine.state == State.WAIT_FINAL_OR_COMMA:
             if len(machine.stract_data) < len(machine.dis_key):
                 proces_next_token[self._id_comma] = float("inf")
+                force = True
             else:
                 proces_next_token[self._id_close_brace] = float("inf")
-        return proces_next_token
+                force = True
+        return proces_next_token, force
 
     def __transformer(self, prompt: str) -> str:
         prom_bytes = prompt.encode("utf-8")
