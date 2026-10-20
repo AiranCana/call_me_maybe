@@ -5,6 +5,7 @@ from pathlib import Path
 from src.enum import State
 from tqdm import tqdm
 from src.state_machine import Parser_llm
+from numpy import asarray, argpartition, argsort
 import json
 
 dicts: dict[str, str] = {
@@ -14,6 +15,7 @@ dicts: dict[str, str] = {
 }
 
 MAX_TOKEN_RETURN = 400
+TOP_K = 100
 
 
 class Small_llm:
@@ -90,34 +92,32 @@ class Small_llm:
                 break
             next_token_posi, force = self.__get_next_posible_tokens(input_ids,
                                                                     machine)
-            logits = sorted(range(len(next_token_posi)),
-                            key=lambda idx: next_token_posi[idx],
-                            reverse=True)
+            logits: dict[int, None] = {}
+            k = TOP_K
+            arr = asarray(next_token_posi)
             text = "forced" if force else "recharged "
             found = False
-            for n in range(len(logits)):
-                if machine.verif_correct_now(self.decode([logits[n]]),
-                                             escaped_prompt_base):
-                    found = self.__asign_token(
-                        input_ids, escaped_prompt_base, result, machine,
-                        logits[n])
-                    if self.visual:
-                        if text != "forced":
-                            text += f"{n} more probable tokens: "
-                            text += ", ".join(f"'{x}'" for x in logits[:n])
-                            if n == 0:
-                                text = "recharged, no more probable tokens"
-                            tqdm.write(f"[{machine.state.name}] "
-                                       "selected token: "
-                                       f"'{self.decode([logits[n]])}'"
-                                       f" ({text})")
-                        else:
-                            tqdm.write(f"[{machine.state.name}] "
-                                       "selected token: "
-                                       f"'{self.decode([logits[n]])}'"
-                                       f" ({text})", )
-                    generated_tokens += 1
-                    break
+            while not found and len(logits) < len(arr):
+                k = min(k, len(arr))
+                idx = argpartition(arr, -k)[-k:]
+                tqdm.write(f"Generated: {self.decode(idx[argsort(-arr[idx])])}\n")
+                for top in idx[argsort(-arr[idx])]:
+                    next_token = int(top)
+                    if next_token in logits:
+                        continue
+                    logits[next_token] = None
+                    if machine.verif_correct_now(
+                       self.decode([next_token]),
+                       escaped_prompt_base):
+                        found = self.__asign_token(
+                            input_ids, escaped_prompt_base, result, machine,
+                            next_token)
+                        if self.visual:
+                            self.__write_all(machine, text, len(logits) - 1,
+                                             list(logits))
+                        generated_tokens += 1
+                        break
+                k *= 4
             if not found:
                 raise ValueError("Error: Can't predict next token\n"
                                  "prompt: " + prompt +
@@ -128,6 +128,26 @@ class Small_llm:
                                  "prompt: " + prompt +
                                  "\nprogress: " + self.decode(result))
         return self.decode(result)
+
+    def __write_all(self,
+                    machine: Parser_llm,
+                    text: str,
+                    n: int,
+                    logits: list[int]) -> None:
+        if text != "forced":
+            text += f"{n} more probable tokens: "
+            text += ", ".join(f"'{x}'" for x in logits[:n])
+            if n == 0:
+                text = "recharged, no more probable tokens"
+            tqdm.write(f"[{machine.state.name}] "
+                       "selected token: "
+                       f"'{self.decode([logits[n]])}'"
+                       f" ({text})")
+        else:
+            tqdm.write(f"[{machine.state.name}] "
+                       "selected token: "
+                       f"'{self.decode([logits[n]])}'"
+                       f" ({text})", )
 
     def __asign_token(
             self, input_ids: list[int], escaped_prompt_base: str,

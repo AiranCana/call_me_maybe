@@ -56,7 +56,6 @@ def __parse_args() -> Namespace:
     parser.add_argument(
         "--visual_progress",
         action="store_true",
-        type=bool,
         default=False
     )
     return parser.parse_args()
