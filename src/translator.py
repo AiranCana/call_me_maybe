@@ -100,21 +100,20 @@ class Small_llm:
             while not found and len(logits) < len(arr):
                 k = min(k, len(arr))
                 idx = argpartition(arr, -k)[-k:]
-                tqdm.write(f"Generated: {self.decode(idx[argsort(-arr[idx])])}\n")
-                for top in idx[argsort(-arr[idx])]:
-                    next_token = int(top)
+                for top_token in idx[argsort(-arr[idx])]:
+                    next_token = int(top_token)
                     if next_token in logits:
                         continue
                     logits[next_token] = None
                     if machine.verif_correct_now(
                        self.decode([next_token]),
                        escaped_prompt_base):
+                        if self.visual:
+                            self.__write_all(machine, text, next_token,
+                                             list(logits))
                         found = self.__asign_token(
                             input_ids, escaped_prompt_base, result, machine,
                             next_token)
-                        if self.visual:
-                            self.__write_all(machine, text, len(logits) - 1,
-                                             list(logits))
                         generated_tokens += 1
                         break
                 k *= 4
@@ -132,11 +131,15 @@ class Small_llm:
     def __write_all(self,
                     machine: Parser_llm,
                     text: str,
-                    n: int,
+                    next_token: int,
                     logits: list[int]) -> None:
+        for i in range(len(logits)):
+            if logits[i] == next_token:
+                n = i
+                break
         if text != "forced":
             text += f"{n} more probable tokens: "
-            text += ", ".join(f"'{x}'" for x in logits[:n])
+            text += ", ".join(f"'{self.decode([x])}'" for x in logits[:n])
             if n == 0:
                 text = "recharged, no more probable tokens"
             tqdm.write(f"[{machine.state.name}] "
@@ -147,7 +150,7 @@ class Small_llm:
             tqdm.write(f"[{machine.state.name}] "
                        "selected token: "
                        f"'{self.decode([logits[n]])}'"
-                       f" ({text})", )
+                       f" ({text})")
 
     def __asign_token(
             self, input_ids: list[int], escaped_prompt_base: str,
@@ -167,38 +170,52 @@ class Small_llm:
         proces_next_token = self.model.get_logits_from_input_ids(input_ids)
         force = False
         if machine.state == State.FIND_BRACKET:
-            proces_next_token[self._id_open_bracket] = float("inf")
-            force = True
+            proces_next_token, force = self.__asign_token_force(
+                proces_next_token, self._id_open_bracket)
         if machine.state == State.WAIT_KEY:
-            proces_next_token[self._id_quote] = float("inf")
-            force = True
+            proces_next_token, force = self.__asign_token_force(
+                proces_next_token, self._id_quote)
         if machine.state == State.WAIT_COLON:
-            proces_next_token[self._id_colon] = float("inf")
-            force = True
+            proces_next_token, force = self.__asign_token_force(
+                proces_next_token, self._id_colon)
         if (n := machine.read_dict_value) is not None:
-            if n.state == State.FIND_BRACKET:
-                proces_next_token[self._id_open_bracket] = float("inf")
-                force = True
-            if n.state == State.WAIT_KEY:
-                proces_next_token[self._id_quote] = float("inf")
-                force = True
-            if n.state == State.WAIT_COLON:
-                proces_next_token[self._id_colon] = float("inf")
-                force = True
-            if n.state == State.WAIT_FINAL_OR_COMMA:
-                if len(n.stract_data) < len(n.dis_key):
-                    proces_next_token[self._id_comma] = float("inf")
-                    force = True
-                else:
-                    proces_next_token[self._id_close_brace] = float("inf")
-                    force = True
+            proces_next_token, force = self.__force_dict_token(
+                n, proces_next_token)
         if machine.state == State.WAIT_FINAL_OR_COMMA:
             if len(machine.stract_data) < len(machine.dis_key):
-                proces_next_token[self._id_comma] = float("inf")
-                force = True
+                proces_next_token, force = self.__asign_token_force(
+                    proces_next_token, self._id_comma)
             else:
-                proces_next_token[self._id_close_brace] = float("inf")
-                force = True
+                proces_next_token, force = self.__asign_token_force(
+                    proces_next_token, self._id_close_brace)
+        return proces_next_token, force
+
+    def __force_dict_token(self, n: Parser_llm,
+                           proces_next_token: list[float]
+                           ) -> tuple[list[float], bool]:
+        force = False
+        if n.state == State.FIND_BRACKET:
+            proces_next_token, force = self.__asign_token_force(
+                proces_next_token, self._id_open_bracket)
+        if n.state == State.WAIT_KEY:
+            proces_next_token, force = self.__asign_token_force(
+                    proces_next_token, self._id_quote)
+        if n.state == State.WAIT_COLON:
+            proces_next_token, force = self.__asign_token_force(
+                    proces_next_token, self._id_colon)
+        if n.state == State.WAIT_FINAL_OR_COMMA:
+            if len(n.stract_data) < len(n.dis_key):
+                proces_next_token, force = self.__asign_token_force(
+                        proces_next_token, self._id_comma)
+            else:
+                proces_next_token, force = self.__asign_token_force(
+                        proces_next_token, self._id_close_brace)
+        return proces_next_token, force
+
+    def __asign_token_force(self, proces_next_token: list[float],
+                            token: int) -> tuple[list[float], bool]:
+        proces_next_token[token] = float("inf")
+        force = True
         return proces_next_token, force
 
     def __transformer(self, prompt: str) -> str:
