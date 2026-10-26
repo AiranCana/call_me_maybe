@@ -94,13 +94,13 @@ class Small_llm:
                                                                     machine)
             logits: dict[int, None] = {}
             k = TOP_K
-            arr = asarray(next_token_posi)
+            array = asarray(next_token_posi)
             text = "forced" if force else "recharged "
             found = False
-            while not found and len(logits) < len(arr):
-                k = min(k, len(arr))
-                idx = argpartition(arr, -k)[-k:]
-                for top_token in idx[argsort(-arr[idx])]:
+            while not found and len(logits) < len(array):
+                k = min(k, len(array))
+                top_k = argpartition(array, -k)[-k:]
+                for top_token in top_k[argsort(-array[top_k])]:
                     next_token = int(top_token)
                     if next_token in logits:
                         continue
@@ -139,7 +139,8 @@ class Small_llm:
                 break
         if text != "forced":
             text += f"{n} more probable tokens: "
-            text += ", ".join(f"'{self.decode([x])}'" for x in logits[:n])
+            text += ", ".join(f"'{self.__replace(self.decode([x]))}'"
+                              for x in logits[:n])
             if n == 0:
                 text = "recharged, no more probable tokens"
             tqdm.write(f"[{machine.state.name}] "
@@ -151,6 +152,17 @@ class Small_llm:
                        "selected token: "
                        f"'{self.decode([logits[n]])}'"
                        f" ({text})")
+
+    def __replace(self, text: str) -> str:
+        text = text.replace("\n", "\\n")
+        text = text.replace("\t", "\\t")
+        text = text.replace("\r", "\\r")
+        text = text.replace("\b", "\\b")
+        text = text.replace("\f", "\\f")
+        text = text.replace("\v", "\\v")
+        text = text.replace("\a", "\\a")
+        text = text.replace("\0", "\\0")
+        return text
 
     def __asign_token(
             self, input_ids: list[int], escaped_prompt_base: str,
