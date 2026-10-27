@@ -1,4 +1,3 @@
-
 from llm_sdk import Small_LLM_Model
 from typing import Any
 from pathlib import Path
@@ -19,8 +18,23 @@ TOP_K = 100
 
 
 class Small_llm:
+    """Wrap a local model so it emits only valid function-call JSON.
+
+    The wrapper enforces the expected schema while generating structured output
+    for the supplied function definitions.
+    """
+
     def __init__(self, functions: list[dict[str, Any]],
                  name_model: str, visual: bool) -> None:
+        """Initialize the model, parameter schema, and prompt builder.
+
+        Args:
+            functions: Function definitions extracted from the input
+                specification.
+            name_model: Hugging Face model identifier to load.
+            visual: Whether to print token-level progress during generation.
+        """
+
         self.parameters = {
             funtion["name"]: {
                 k: v.type for k, v in funtion["parameters"].items()
@@ -34,6 +48,8 @@ class Small_llm:
             raise ValueError(e)
 
     def __generate_model(self, name_model: str) -> None:
+        """Load the tokenizer and model used for local inference."""
+
         self.__encoder = self.__bytes_to_unicode()
         self.__decoder = {k: v for v, k in self.__encoder.items()}
         self.model = Small_LLM_Model(model_name=name_model)
@@ -49,6 +65,8 @@ class Small_llm:
         self.__generate_special_tokens()
 
     def __generate_special_tokens(self) -> None:
+        """Cache the token IDs used to force JSON structure tokens."""
+
         self._id_open_bracket = self.encode("{")[0]
         self._id_quote = self.encode('"')[0]
         self._id_colon = self.encode(":")[0]
@@ -56,6 +74,8 @@ class Small_llm:
         self._id_close_brace = self.encode("}")[0]
 
     def __generate_sys_prompt(self, functions: list[dict[str, Any]]) -> None:
+        """Build the system prompt describing the allowed output contract."""
+
         for x in functions:
             x["returns"] = x["returns"].__dict__
             for key, val in x["parameters"].items():
@@ -67,6 +87,13 @@ class Small_llm:
                          "Functions: " + functions_text)
 
     def __bytes_to_unicode(self) -> dict[int, str]:
+        """Construct the byte-to-unicode mapping used by the tokenizer.
+
+        Returns:
+            dict[int, str]: Mapping from byte values to their Unicode
+                representation.
+        """
+
         bas = (list(range(ord("!"), ord("~") + 1)) +
                list(range(ord("¡"), ord("¬") + 1)) +
                list(range(ord("®"), ord("ÿ") + 1)))
@@ -82,6 +109,17 @@ class Small_llm:
     def __generator(self, prompt: str,
                     prompt_base: str,
                     max_tokens: int = MAX_TOKEN_RETURN) -> str:
+        """Generate a valid JSON completion while respecting the schema.
+
+        Args:
+            prompt: Full prompt text sent to the model.
+            prompt_base: Base prompt used to validate field content.
+            max_tokens: Maximum number of tokens allowed in the response.
+
+        Returns:
+            str: The decoded generated text.
+        """
+
         input_ids = self.encode(prompt)
         escaped_prompt_base = json.dumps(prompt_base)[1:-1]
         result: list[int] = []
@@ -133,6 +171,8 @@ class Small_llm:
                     text: str,
                     next_token: int,
                     logits: list[int]) -> None:
+        """Emit a token-selection trace for debugging and inspection."""
+
         for i in range(len(logits)):
             if logits[i] == next_token:
                 n = i
@@ -154,6 +194,8 @@ class Small_llm:
                        f" ({text})")
 
     def __replace(self, text: str) -> str:
+        """Escape control characters so they remain visible in debug output."""
+
         text = text.replace("\n", "\\n")
         text = text.replace("\t", "\\t")
         text = text.replace("\r", "\\r")
@@ -168,6 +210,8 @@ class Small_llm:
             self, input_ids: list[int], escaped_prompt_base: str,
             result: list[int], machine: Parser_llm,
             next_token: int) -> bool:
+        """Apply the selected token to the result and parser state."""
+
         machine.proces_token(self.decode([next_token]), escaped_prompt_base)
         input_ids.append(next_token)
         result.append(next_token)
@@ -179,6 +223,8 @@ class Small_llm:
             input_ids: list[int],
             machine: Parser_llm
             ) -> tuple[list[float], bool]:
+        """Collect logits for the next token while forcing valid structure."""
+
         proces_next_token = self.model.get_logits_from_input_ids(input_ids)
         force = False
         if machine.state == State.FIND_BRACKET:
@@ -205,6 +251,8 @@ class Small_llm:
     def __force_dict_token(self, n: Parser_llm,
                            proces_next_token: list[float]
                            ) -> tuple[list[float], bool]:
+        """Force the next valid token for nested dictionary parsing."""
+
         force = False
         if n.state == State.FIND_BRACKET:
             proces_next_token, force = self.__asign_token_force(
@@ -226,15 +274,28 @@ class Small_llm:
 
     def __asign_token_force(self, proces_next_token: list[float],
                             token: int) -> tuple[list[float], bool]:
+        """Boost a specific token so the parser keeps JSON valid."""
+
         proces_next_token[token] = float("inf")
         force = True
         return proces_next_token, force
 
     def __transformer(self, prompt: str) -> str:
+        """Encode a prompt into the byte-level representation expected."""
+
         prom_bytes = prompt.encode("utf-8")
         return "".join(self.__encoder[b] for b in prom_bytes)
 
     def encode(self, prompt: str) -> list[int]:
+        """Tokenize a prompt by longest-match encoding.
+
+        Args:
+            prompt: Text to convert to token IDs.
+
+        Returns:
+            list[int]: The sequence of token IDs for the prompt.
+        """
+
         inputs_id = []
         prompt = self.__transformer(prompt)
         i = 0
@@ -256,11 +317,29 @@ class Small_llm:
         return inputs_id
 
     def decode(self, tokens: list[int]) -> str:
+        """Convert a sequence of token IDs back into UTF-8 text.
+
+        Args:
+            tokens: Token IDs to decode.
+
+        Returns:
+            str: The decoded text with invalid byte sequences replaced.
+        """
+
         out_byte = "".join(self.dic_decoder.get(tok, "") for tok in tokens)
         text = bytes(self.__decoder[ch] for ch in out_byte
                      if ch in self.__decoder)
         return text.decode("utf-8", errors="replace")
 
     def communication(self, prompt: str) -> str:
+        """Generate a structured function call for the given user prompt.
+
+        Args:
+            prompt: User request to translate into a function call.
+
+        Returns:
+            str: The model-generated JSON response.
+        """
+
         new_prompt = "\nUser: " + prompt + "\nAssistant: "
         return self.__generator(self.sys_prom + new_prompt, prompt)

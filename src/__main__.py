@@ -10,6 +10,13 @@ from src.parser import parser, Output
 
 
 def main() -> int:
+    """Run the end-to-end function-calling workflow.
+
+    Returns:
+        int: Exit code for the CLI run. Zero on success; one on validation or
+            runtime failure.
+    """
+
     try:
         datas, output, exist, model_name, visual = parser()
         model = Small_llm([x.__dict__ for x in datas.funtions],
@@ -37,11 +44,28 @@ def main() -> int:
 
 
 def generate_output(file: Path, output: list[dict[str, Any]]) -> None:
+    """Write the final JSON output to a file in a readable format.
+
+    Args:
+        file: Destination file path.
+        output: List of validated result dictionaries to store.
+    """
+
     with file.open("w", encoding="utf-8") as f:
         json.dump(output, f, indent=4)
 
 
 def __opten_results(i: str, model: Small_llm) -> Any:
+    """Process a single prompt and normalize the returned JSON payload.
+
+    Args:
+        i: User prompt to evaluate.
+        model: Model instance used to generate the result.
+
+    Returns:
+        Any: Parsed output object or None if processing fails.
+    """
+
     try:
         return __string_to_json(__opten_result(i, model))
     except Exception as e:
@@ -50,6 +74,18 @@ def __opten_results(i: str, model: Small_llm) -> Any:
 
 
 def __string_to_json(str: str | None) -> Any:
+    """Convert a JSON string into Python objects with a fallback escape repair.
+
+    Args:
+        str: Serialized JSON text.
+
+    Returns:
+        Any: Decoded JSON object, or None if no value was provided.
+
+    Raises:
+        ValueError: If the string still cannot be parsed as valid JSON.
+    """
+
     if str is None:
         return None
     try:
@@ -64,6 +100,16 @@ def __string_to_json(str: str | None) -> Any:
 
 
 def __opten_result(prompt: str, model: Small_llm) -> str | None:
+    """Generate a raw completion for a prompt and return it if successful.
+
+    Args:
+        prompt: User prompt to generate a response for.
+        model: Model instance responsible for inference.
+
+    Returns:
+        str | None: Raw model response string, or None if generation fails.
+    """
+
     try:
         return model.communication(prompt)
     except Exception as e:

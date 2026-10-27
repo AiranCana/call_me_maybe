@@ -44,6 +44,18 @@ The function name and the argument values are always **chosen by the LLM** (neve
 - The `"prompt"` field is forced to be an exact copy of the user prompt (including characters that need JSON escaping).
 - **Bonus:** own public tokenizer (`Small_llm.tokenizer`) and `Small_llm.decode`, built only from `get_path_to_vocab_file()` and `get_logits_from_input_ids()`. The SDK `encode`/`decode` are never used in the main code.
 - Input validation with `pydantic`, graceful error messages, per-prompt error isolation.
+- Documentation quality: all classes and functions follow PEP 257 docstring conventions so the purpose, parameters, and return values are explicit.
+
+## Documentation standards
+
+This project keeps its code self-explanatory by documenting each class and function with a short PEP 257 docstring. The intent is to make the constrained-decoding pipeline easier to follow for contributors and to keep API contracts clear for future changes.
+
+A typical docstring includes:
+
+- the object’s purpose,
+- parameter descriptions,
+- any return values or side effects,
+- the context in which the logic is used.
 
 ## Instructions
 
@@ -77,7 +89,7 @@ uv run python -m src
 Arguments are forwarded through the `ARGS` variable:
 
 ```bash
-make run ARGS="--input data/input/function_calling_tests.json --output data/output/out.json"
+make run ARGS="--input data/input/function_calling_tests.json --output data/output/out.json --model_name Qwen/Qwen3-0.6B --visual_progress"
 ```
 
 or directly with `uv`:
@@ -86,14 +98,18 @@ or directly with `uv`:
 uv run python -m src \
     --functions_definition data/input/functions_definition.json \
     --input data/input/function_calling_tests.json \
-    --output data/output/function_calling_results.json
+    --output data/output/function_calling_results.json \
+    --model_name Qwen/Qwen3-0.6B \
+    --visual_progress
 ```
 
-| Argument | Default |
-|---|---|
-| `--functions_definition` | `data/input/functions_definition.json` |
-| `--input` | `data/input/function_calling_tests.json` |
-| `--output` | `data/output/function_calling_results.json` |
+| Argument | Type | Default |
+|---|---|---|
+| `--functions_definition` | path | `data/input/functions_definition.json` |
+| `--input` | path | `data/input/function_calling_tests.json` |
+| `--output` | path | `data/output/function_calling_results.json` |
+| `--model_name` | string | `Qwen/Qwen3-0.6B` |
+| `--visual_progress` | flag | `False` |
 
 The output directory is created automatically if it does not exist.
 

@@ -2,6 +2,8 @@ from enum import Enum, auto
 
 
 class State(Enum):
+    """Enumeration of parser states used when decoding function-call JSON."""
+
     FIND_BRACKET = auto()
     WAIT_KEY = auto()
     READ_KEY = auto()

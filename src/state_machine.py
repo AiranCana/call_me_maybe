@@ -4,9 +4,22 @@ import json
 
 
 class Parser_llm:
+    """Stream model output through a JSON state machine.
+
+    The parser validates tokens as they arrive and keeps only values that fit
+    the expected schema for the function-call response.
+    """
 
     def __init__(self, objetive_keys: dict[str, str],
                  parameters: dict[str, dict[str, str]] = {}):
+        """Initialize the parser state machine.
+
+        Args:
+            objetive_keys: Expected JSON fields and their data types.
+            parameters: Nested parameter definitions for dictionary-valued
+                fields.
+        """
+
         self.objetive_keys = objetive_keys
         self.dis_key = [key for key in objetive_keys.keys()]
         self.parameters = parameters
@@ -18,10 +31,19 @@ class Parser_llm:
         self.read_dict_value: Optional[Parser_llm] = None
 
     def proces_token(self, token: str, prompt: str) -> None:
+        """Process one or more output characters from the model.
+
+        Args:
+            token: Incoming token text to validate.
+            prompt: Original user prompt used to match prompt field values.
+        """
+
         for char in token:
             self.__trancriptor(char, prompt)
 
     def __trancriptor(self, char: str, prompt: str) -> None:
+        """Route a single character through the active parser state."""
+
         if char.isspace() and self.state not in [
            State.READ_KEY, State.READ_VALUE]:
             return
@@ -51,12 +73,16 @@ class Parser_llm:
                 self.state = State.INVALID
 
     def __wait_one_thing(self, char: str, thing: str, value: State) -> None:
+        """Validate that the next character matches an expected delimiter."""
+
         if char == thing:
             self.state = value
         else:
             self.state = State.INVALID
 
     def __wait_value(self, char: str, prompt: str) -> None:
+        """Handle a value that is expected but not yet being read."""
+
         if (char == 't' or char == 'f') and self.tipe_value == "boolean":
             self.state = State.READ_VALUE
             self.buffer += char
@@ -84,6 +110,8 @@ class Parser_llm:
             self.state = State.INVALID
 
     def __read_key(self, char: str) -> None:
+        """Read and validate a JSON object key against the expected schema."""
+
         if char == '"':
             if self.buffer in self.objetive_keys.keys():
                 if self.buffer == self.dis_key[
@@ -104,6 +132,8 @@ class Parser_llm:
                 self.state = State.INVALID
 
     def __read_value(self, char: str, prompt: str) -> None:
+        """Read the value for the current field based on its declared type."""
+
         match self.tipe_value:
             case "string":
                 self.__read_value_str(char, prompt)
@@ -133,6 +163,8 @@ class Parser_llm:
 
     def __read_value_num(self, char: str, prompt: str,
                          value_type: str) -> None:
+        """Parse a numeric JSON value and validate it against the shape."""
+
         value: int | float
         if char in (',', '}', ' ', '\t', '\n'):
             try:
@@ -161,12 +193,16 @@ class Parser_llm:
                 self.state = State.INVALID
 
     def __read_value_str(self, char: str, prompt: str) -> None:
+        """Parse a string field one character at a time."""
+
         if char == '"' and not self.buffer.endswith("\\"):
             self.__finish_read_value_str(prompt)
         else:
             self.__continue_read_value_str(char, prompt)
 
     def __continue_read_value_str(self, char: str, prompt: str) -> None:
+        """Extend the current string buffer while checking allowed values."""
+
         if (self.stract_data.get("name", None) is None and
            self.actual_key == "name"):
             if len(self.parameters) != 0:
@@ -187,6 +223,8 @@ class Parser_llm:
             self.buffer += char
 
     def __finish_read_value_str(self, prompt: str) -> None:
+        """Finalize a string value while validating names and prompts."""
+
         value = self.buffer
         if (self.stract_data.get("name", None) is None and
            self.actual_key == "name"):
@@ -207,6 +245,8 @@ class Parser_llm:
             self.__asign_value(value)
 
     def __asign_value(self, value: Any) -> None:
+        """Persist a validated field value into the parsed result tree."""
+
         if isinstance(value, str):
             value2 = f'"{value}"'
         else:
@@ -223,6 +263,12 @@ class Parser_llm:
         self.state = State.WAIT_FINAL_OR_COMMA
 
     def new_parser(self) -> "Parser_llm":
+        """Create a cloned parser state for a next-token validity check.
+
+        Returns:
+            Parser_llm: A snapshot that shares the current parser schema.
+        """
+
         news = Parser_llm(self.objetive_keys, self.parameters)
         news.buffer = self.buffer
         news.state = self.state
@@ -234,6 +280,16 @@ class Parser_llm:
         return news
 
     def verif_correct_now(self, token: str, prompt: str) -> bool:
+        """Check whether a candidate token could still lead to valid output.
+
+        Args:
+            token: Candidate token text to test.
+            prompt: User prompt used during prompt matching.
+
+        Returns:
+            bool: True when the token keeps the parse valid, otherwise False.
+        """
+
         pruber = self.new_parser()
         pruber.proces_token(token, prompt)
         return pruber.state != State.INVALID and len(token) != 0
